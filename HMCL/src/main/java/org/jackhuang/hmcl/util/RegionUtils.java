@@ -21,6 +21,7 @@ import org.jackhuang.hmcl.task.Schedulers;
 import org.jackhuang.hmcl.util.gson.JsonSerializable;
 import org.jackhuang.hmcl.util.gson.JsonUtils;
 import org.jackhuang.hmcl.util.i18n.LocaleUtils;
+import org.jackhuang.hmcl.util.io.JarUtils;
 import org.jackhuang.hmcl.util.io.NetworkUtils;
 import org.jackhuang.hmcl.util.platform.NativeUtils;
 import org.jackhuang.hmcl.util.platform.OperatingSystem;
@@ -37,6 +38,18 @@ import static org.jackhuang.hmcl.util.logging.Logger.LOG;
 
 @NotNullByDefault
 public final class RegionUtils {
+
+    /// Whether the region-based download restriction is disabled.
+    ///
+    /// Internal builds can set `-Dhmcl.region.china.restriction.disable=true` at runtime, or
+    /// bake the same key into `assets/hmcl.properties` at build time through the
+    /// `HMCL_DISABLE_CN_RESTRICTION` environment variable, to bypass all mainland-China
+    /// download restrictions. This only affects the restriction checks: download mirror
+    /// selection still follows the machine region.
+    public static final boolean DISABLE_CHINA_RESTRICTION = Boolean.parseBoolean(
+            System.getProperty(
+                    "hmcl.region.china.restriction.disable",
+                    JarUtils.getAttribute("hmcl.region.china.restriction.disable", "false")));
 
     /// Pre-check if the network is in China Mainland to avoid blocking the UI thread.
     public static void init() {
@@ -108,6 +121,10 @@ public final class RegionUtils {
     }
 
     public static boolean isIsChinaMainlandNetwork() {
+        if (DISABLE_CHINA_RESTRICTION) {
+            return false;
+        }
+
         Boolean value = isChinaMainlandNetwork;
         if (value != null)
             return value;

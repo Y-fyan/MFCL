@@ -164,6 +164,11 @@ val createPropertiesFile = tasks.register<WriteProperties>("createPropertiesFile
     property("hmcl.add-opens", addOpens.joinToString(" "))
     System.getenv("GITHUB_SHA")?.let { property("hmcl.version.hash", it) }
     property("hmcl.version.type", versionType)
+    // Internal builds only: bake the region-restriction bypass into the artifact.
+    property(
+        "hmcl.region.china.restriction.disable",
+        System.getenv("HMCL_DISABLE_CN_RESTRICTION") ?: "false"
+    )
     property("hmcl.microsoft.auth.id", microsoftAuthId)
     property("hmcl.curseforge.apikey", curseForgeApiKey)
     property("hmcl.authlib-injector.version", libs.authlib.injector.get().version!!)
