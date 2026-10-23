@@ -1,0 +1,139 @@
+/*
+ * Hello Minecraft! Launcher
+ * Copyright (C) 2026  huangyuhui <huanghongxun2008@126.com> and contributors
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package org.jackhuang.hmcl.ui.mfmc;
+
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Node;
+import javafx.scene.control.Label;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
+import org.jackhuang.hmcl.Metadata;
+import org.jackhuang.hmcl.game.HMCLGameInstance;
+import org.jackhuang.hmcl.setting.GameDirectoryManager;
+import org.jackhuang.hmcl.setting.GameSettings;
+import org.jackhuang.hmcl.ui.game.GameSettingsPage;
+import org.jackhuang.hmcl.ui.main.JavaManagementPage;
+import org.jetbrains.annotations.NotNullByDefault;
+
+/// The MFMC settings tab.
+///
+/// This page intentionally exposes only the settings needed by the internal
+/// launcher: Java management, version isolation, and local about information.
+@NotNullByDefault
+public final class MfmcSettingsPage extends VBox {
+    /// Creates the settings tab.
+    public MfmcSettingsPage() {
+        getStyleClass().add("mfmc-card");
+        setPadding(new Insets(16));
+        setSpacing(12);
+
+        Label title = new Label("设置");
+        title.getStyleClass().add("mfmc-section-title");
+
+        Node javaPage = new JavaManagementPage();
+
+        GameSettingsPage<GameSettings.Preset> gameSettingsPage =
+                new GameSettingsPage<>(GameSettings.Preset.class, null);
+        gameSettingsPage.loadInstance(HMCLGameInstance.Optional.empty(GameDirectoryManager.getSelectedRepository()));
+        Node gamePage = gameSettingsPage;
+
+        Node aboutPage = createAboutPane();
+
+        ToggleGroup group = new ToggleGroup();
+        ToggleButton javaTab = createTab("Java 管理", group);
+        ToggleButton gameTab = createTab("版本隔离", group);
+        ToggleButton aboutTab = createTab("关于", group);
+
+        StackPane content = new StackPane();
+        content.getStyleClass().add("mfmc-settings-content");
+        VBox.setVgrow(content, Priority.ALWAYS);
+
+        javaTab.setOnAction(event -> {
+            if (javaTab.isSelected()) {
+                content.getChildren().setAll(javaPage);
+            } else {
+                javaTab.setSelected(true);
+            }
+        });
+        gameTab.setOnAction(event -> {
+            if (gameTab.isSelected()) {
+                content.getChildren().setAll(gamePage);
+            } else {
+                gameTab.setSelected(true);
+            }
+        });
+        aboutTab.setOnAction(event -> {
+            if (aboutTab.isSelected()) {
+                content.getChildren().setAll(aboutPage);
+            } else {
+                aboutTab.setSelected(true);
+            }
+        });
+
+        HBox tabs = new HBox(4, javaTab, gameTab, aboutTab);
+        tabs.setAlignment(Pos.CENTER_LEFT);
+
+        switch (System.getProperty("mfmc.ui.settings.tab", "java")) {
+            case "game" -> {
+                gameTab.setSelected(true);
+                content.getChildren().setAll(gamePage);
+            }
+            case "about" -> {
+                aboutTab.setSelected(true);
+                content.getChildren().setAll(aboutPage);
+            }
+            default -> {
+                javaTab.setSelected(true);
+                content.getChildren().setAll(javaPage);
+            }
+        }
+
+        getChildren().setAll(title, tabs, content);
+    }
+
+    /// Creates a settings sub-tab.
+    private ToggleButton createTab(String text, ToggleGroup group) {
+        ToggleButton tab = new ToggleButton(text);
+        tab.getStyleClass().add("mfmc-subtab");
+        tab.setToggleGroup(group);
+        tab.setFocusTraversable(false);
+        return tab;
+    }
+
+    /// Creates the local about pane.
+    private VBox createAboutPane() {
+        Label name = new Label(Metadata.FULL_NAME);
+        name.getStyleClass().add("mfmc-about-name");
+
+        Label version = new Label("版本 " + Metadata.VERSION);
+        version.getStyleClass().add("mfmc-about-version");
+
+        Label notice = new Label("仅限 MFMC 内部研发与测试，请勿对外分发。");
+        notice.getStyleClass().add("mfmc-about-notice");
+        notice.setWrapText(true);
+
+        VBox pane = new VBox(6, name, version, notice);
+        pane.setPadding(new Insets(16));
+        return pane;
+    }
+}

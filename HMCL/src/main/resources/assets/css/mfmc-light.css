@@ -1,0 +1,470 @@
+/*
+ * Hello Minecraft! Launcher
+ * Copyright (C) 2026  huangyuhui <huanghongxun2008@126.com> and contributors
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/*
+ * MFMC light theme.
+ *
+ * The classic HMCL theme stays untouched. This sheet is attached only to the
+ * MFMC root node, so it can force a light palette without changing global
+ * settings or the classic UI.
+ */
+
+.mfmc-root {
+    -mfmc-bg: #F4F6FA;
+    -mfmc-surface: #FFFFFF;
+    -mfmc-surface-muted: #F8FAFC;
+    -mfmc-text: #111827;
+    -mfmc-text-muted: #6B7280;
+    -mfmc-text-faint: #9AA3B2;
+    -mfmc-border: #E6EBF3;
+    -mfmc-primary: #4F7CFF;
+    -mfmc-primary-hover: #3D6BEF;
+    -mfmc-primary-soft: #E8EEFF;
+    -mfmc-green: #3C8527;
+    -mfmc-green-hover: #4A9B35;
+    -mfmc-green-pressed: #32701F;
+    -mfmc-shadow: rgba(17, 24, 39, 0.06);
+
+    -fx-background-color: -mfmc-bg;
+}
+
+.mfmc-root,
+.mfmc-root * {
+    -monet-primary: #4F7CFF;
+    -monet-on-primary: #FFFFFF;
+    -monet-primary-container: #DCE6FF;
+    -monet-on-primary-container: #0B2A6F;
+    -monet-primary-fixed: #DCE6FF;
+    -monet-primary-fixed-dim: #B8CBFF;
+    -monet-on-primary-fixed: #061A4A;
+    -monet-on-primary-fixed-variant: #2147A8;
+    -monet-secondary: #5B6472;
+    -monet-on-secondary: #FFFFFF;
+    -monet-secondary-container: #E8EDF5;
+    -monet-on-secondary-container: #374151;
+    -monet-secondary-fixed: #E8EDF5;
+    -monet-secondary-fixed-dim: #D5DCE8;
+    -monet-on-secondary-fixed: #111827;
+    -monet-on-secondary-fixed-variant: #4B5563;
+    -monet-tertiary: #3C8527;
+    -monet-on-tertiary: #FFFFFF;
+    -monet-tertiary-container: #DDF4D5;
+    -monet-on-tertiary-container: #163D0C;
+    -monet-tertiary-fixed: #DDF4D5;
+    -monet-tertiary-fixed-dim: #B9E5AA;
+    -monet-on-tertiary-fixed: #0B2605;
+    -monet-on-tertiary-fixed-variant: #2B641B;
+    -monet-error: #BA1A1A;
+    -monet-on-error: #FFFFFF;
+    -monet-error-container: #FFDAD6;
+    -monet-on-error-container: #93000A;
+    -monet-surface: #FFFFFF;
+    -monet-on-surface: #111827;
+    -monet-surface-dim: #D5DCE8;
+    -monet-surface-bright: #FFFFFF;
+    -monet-surface-container-lowest: #FFFFFF;
+    -monet-surface-container-low: #F8FAFC;
+    -monet-surface-container: #FFFFFF;
+    -monet-surface-container-high: #EEF2F7;
+    -monet-surface-container-highest: #E6EBF3;
+    -monet-surface-variant: #E6EBF3;
+    -monet-on-surface-variant: #5B6472;
+    -monet-background: #F4F6FA;
+    -monet-on-background: #111827;
+    -monet-outline: #D5DCE8;
+    -monet-outline-variant: #E6EBF3;
+    -monet-shadow: #000000;
+    -monet-scrim: #000000;
+    -monet-inverse-surface: #1F2937;
+    -monet-inverse-on-surface: #F8FAFC;
+    -monet-inverse-primary: #B8CBFF;
+    -monet-surface-tint: #4F7CFF;
+    -monet-primary-seed: #4F7CFF;
+    -monet-primary-transparent-50: #4F7CFF80;
+    -monet-primary-transparent-80: #4F7CFFCC;
+    -monet-secondary-container-transparent-50: #E8EDF580;
+    -monet-surface-transparent-50: #FFFFFF80;
+    -monet-surface-transparent-80: #FFFFFFCC;
+    -monet-on-surface-variant-transparent-38: #5B647261;
+    -monet-surface-container-low-transparent-80: #F8FAFCCC;
+    -monet-secondary-container-transparent-80: #E8EDF5CC;
+    -monet-inverse-surface-transparent-80: #1F2937CC;
+}
+
+/* Top bar */
+
+.mfmc-topbar {
+    -fx-background-color: -mfmc-surface;
+    -fx-border-color: transparent transparent -mfmc-border transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 8 20 8 20;
+    -fx-min-height: 54;
+}
+
+.mfmc-brand {
+    -fx-font-size: 17px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmc-brand-sub {
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text-faint;
+}
+
+.mfmc-tab {
+    -fx-background-color: transparent;
+    -fx-background-radius: 999;
+    -fx-padding: 8 14 8 14;
+    -fx-text-fill: -mfmc-text-muted;
+    -fx-font-size: 13px;
+    -fx-cursor: hand;
+}
+
+.mfmc-tab:hover {
+    -fx-background-color: -mfmc-surface-muted;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmc-tab:selected {
+    -fx-background-color: -mfmc-primary-soft;
+    -fx-text-fill: #315BDB;
+    -fx-font-weight: bold;
+}
+
+.mfmc-mode-badge {
+    -fx-background-color: -mfmc-surface-muted;
+    -fx-background-radius: 999;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 999;
+    -fx-padding: 3 9 3 9;
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text-faint;
+}
+
+.mfmc-window-title {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+/* Content and cards */
+
+.mfmc-content {
+    -fx-background-color: -mfmc-bg;
+}
+
+.mfmc-card {
+    -fx-background-color: -mfmc-surface;
+    -fx-background-radius: 16;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 16;
+    -fx-padding: 16;
+    -fx-effect: dropshadow(gaussian, -mfmc-shadow, 16, 0.1, 0, 4);
+}
+
+.mfmc-section-title {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+/* Account block */
+
+.mfmc-account-box {
+    -fx-background-color: -mfmc-surface-muted;
+    -fx-background-radius: 12;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 12;
+    -fx-padding: 8;
+}
+
+.mfmc-account-box:hover {
+    -fx-background-color: #F1F5FB;
+    -fx-border-color: #D5DFEE;
+}
+
+.mfmc-avatar-frame {
+    -fx-background-color: -mfmc-surface;
+    -fx-background-radius: 999;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 999;
+    -fx-padding: 2;
+}
+
+.mfmc-account-name {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmc-account-type {
+    -fx-font-size: 10px;
+    -fx-text-fill: -mfmc-text-muted;
+}
+
+.mfmc-chevron .svg {
+    -fx-fill: -mfmc-text-faint;
+}
+
+/* Launch button */
+
+.mfmc-launch-button {
+    -fx-background-color: -mfmc-green;
+    -fx-background-radius: 20;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(60, 133, 39, 0.25), 16, 0.15, 0, 6);
+}
+
+.mfmc-launch-button:hover {
+    -fx-background-color: -mfmc-green-hover;
+}
+
+.mfmc-launch-button:pressed {
+    -fx-background-color: -mfmc-green-pressed;
+}
+
+.mfmc-launch-icon .svg {
+    -fx-fill: #FFFFFF;
+}
+
+.mfmc-launch-text {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+}
+
+/* Version selector */
+
+.mfmc-link-button {
+    -fx-background-color: transparent;
+    -fx-padding: 2 4 2 4;
+    -fx-font-size: 10px;
+    -fx-text-fill: -mfmc-primary;
+    -fx-cursor: hand;
+}
+
+.mfmc-link-button:hover {
+    -fx-text-fill: -mfmc-primary-hover;
+    -fx-underline: true;
+}
+
+.mfmc-version-list {
+    -fx-background-color: transparent;
+    -fx-control-inner-background: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.mfmc-version-list .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 4 8 4 8;
+    -fx-background-radius: 8;
+}
+
+.mfmc-version-list .list-cell:filled:hover {
+    -fx-background-color: -mfmc-surface-muted;
+}
+
+.mfmc-version-list .list-cell:filled:selected {
+    -fx-background-color: -mfmc-primary-soft;
+}
+
+.mfmc-version-title {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmc-version-subtitle {
+    -fx-font-size: 10px;
+    -fx-text-fill: -mfmc-text-muted;
+}
+
+.mfmc-empty-hint {
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmc-text-faint;
+}
+
+/* News */
+
+.mfmc-news-pane {
+    -fx-background-color: -mfmc-surface;
+}
+
+.mfmc-news-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-padding: 0;
+}
+
+.mfmc-news-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.mfmc-news-scroll .scroll-bar:vertical {
+    -fx-pref-width: 8;
+    -fx-background-color: transparent;
+}
+
+.mfmc-news-scroll .scroll-bar:vertical .thumb {
+    -fx-background-color: #D5DCE8;
+    -fx-background-radius: 999;
+}
+
+.mfmc-hero {
+    -fx-background-color: linear-gradient(to bottom right, #E8F0FF, #EEF9EA);
+    -fx-background-radius: 12;
+    -fx-padding: 14;
+}
+
+.mfmc-hero-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #173A1C;
+}
+
+.mfmc-hero-text {
+    -fx-font-size: 11px;
+    -fx-text-fill: #4B6352;
+}
+
+.mfmc-primary-button {
+    -fx-background-color: -mfmc-primary;
+    -fx-background-radius: 999;
+    -fx-padding: 6 12 6 12;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+    -fx-cursor: hand;
+}
+
+.mfmc-primary-button:hover {
+    -fx-background-color: -mfmc-primary-hover;
+}
+
+.mfmc-news-card {
+    -fx-background-color: -mfmc-surface-muted;
+    -fx-background-radius: 10;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 10;
+    -fx-padding: 10;
+}
+
+.mfmc-news-tag {
+    -fx-background-color: -mfmc-primary-soft;
+    -fx-background-radius: 999;
+    -fx-padding: 1 7 1 7;
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #315BDB;
+}
+
+.mfmc-news-title {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmc-news-summary {
+    -fx-font-size: 10px;
+    -fx-text-fill: -mfmc-text-muted;
+}
+
+.mfmc-news-date {
+    -fx-font-size: 9px;
+    -fx-text-fill: -mfmc-text-faint;
+}
+
+.mfmc-link {
+    -fx-font-size: 10px;
+    -fx-text-fill: -mfmc-primary;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.mfmc-link:hover {
+    -fx-text-fill: -mfmc-primary-hover;
+    -fx-underline: true;
+}
+
+/* Settings sub-tabs */
+
+.mfmc-subtab {
+    -fx-background-color: transparent;
+    -fx-background-radius: 999;
+    -fx-padding: 6 12 6 12;
+    -fx-text-fill: -mfmc-text-muted;
+    -fx-font-size: 11px;
+    -fx-cursor: hand;
+}
+
+.mfmc-subtab:hover {
+    -fx-background-color: -mfmc-surface-muted;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmc-subtab:selected {
+    -fx-background-color: -mfmc-primary-soft;
+    -fx-text-fill: #315BDB;
+    -fx-font-weight: bold;
+}
+
+.mfmc-settings-content {
+    -fx-background-color: transparent;
+}
+
+.mfmc-about-name {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmc-about-version {
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmc-text-muted;
+}
+
+.mfmc-about-notice {
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmc-text-faint;
+}
+
+/* Embedded classic pages */
+
+.mfmc-embedded-page {
+    -fx-background-color: transparent;
+}
+
+.mfmc-root .gray-background {
+    -fx-background-color: transparent;
+}
+
+.mfmc-root .tab-header-area {
+    -fx-background-color: transparent;
+}
+
+.mfmc-root .tab-container {
+    -fx-background-color: transparent;
+}
+
+.mfmc-root .advanced-list-box-content {
+    -fx-background-color: transparent;
+}

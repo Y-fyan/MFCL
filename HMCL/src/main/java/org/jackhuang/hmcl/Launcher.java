@@ -41,6 +41,7 @@ import org.jackhuang.hmcl.task.Schedulers;
 import org.jackhuang.hmcl.ui.Controllers;
 import org.jackhuang.hmcl.ui.FXUtils;
 import org.jackhuang.hmcl.ui.animation.AnimationUtils;
+import org.jackhuang.hmcl.ui.mfmc.MfmcUiMode;
 import org.jackhuang.hmcl.upgrade.UpdateChecker;
 import org.jackhuang.hmcl.upgrade.UpdateHandler;
 import org.jackhuang.hmcl.util.*;
@@ -143,7 +144,9 @@ public final class Launcher extends Application {
                 Controllers.initialize(primaryStage);
 
                 RegionUtils.init();
-                UpdateChecker.init();
+                if (!MfmcUiMode.isEnabled()) {
+                    UpdateChecker.init();
+                }
 
                 primaryStage.show();
             });
@@ -308,10 +311,10 @@ public final class Launcher extends Application {
             LOG.info("Java VM Version: " + System.getProperty("java.vm.name") + " (" + System.getProperty("java.vm.info") + "), " + System.getProperty("java.vm.vendor"));
             LOG.info("Java Home: " + System.getProperty("java.home"));
             LOG.info("Current Directory: " + Metadata.CURRENT_DIRECTORY);
-            LOG.info("HMCL User Home: " + Metadata.HMCL_USER_HOME);
-            LOG.info("HMCL Local Home: " + Metadata.HMCL_LOCAL_HOME);
-            LOG.info("HMCL Jar Path: " + Objects.requireNonNullElse(JarUtils.thisJarPath(), "Not Found"));
-            LOG.info("HMCL Log File: " + Objects.requireNonNullElse(LOG.getLogFile(), "In Memory"));
+            LOG.info("Launcher User Home: " + Metadata.HMCL_USER_HOME);
+            LOG.info("Launcher Config Home: " + Metadata.HMCL_LOCAL_HOME);
+            LOG.info("Launcher Jar Path: " + Objects.requireNonNullElse(JarUtils.thisJarPath(), "Not Found"));
+            LOG.info("Launcher Log File: " + Objects.requireNonNullElse(LOG.getLogFile(), "In Memory"));
             LOG.info("JVM Max Memory: " + MEGABYTES.formatBytes(Runtime.getRuntime().maxMemory()));
             try {
                 for (MemoryPoolMXBean bean : ManagementFactory.getMemoryPoolMXBeans()) {

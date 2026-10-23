@@ -34,14 +34,14 @@ public final class Metadata {
     private Metadata() {
     }
 
-    public static final String NAME = "HMCL";
-    public static final String FULL_NAME = "Hello Minecraft! Launcher";
+    public static final String NAME = "MFMC";
+    public static final String FULL_NAME = "MDFZ Minecraft Craft Launcher";
     public static final String VERSION = System.getProperty("hmcl.version.override", JarUtils.getAttribute("hmcl.version", "@develop@"));
 
     /// Explicit Application User Model ID used for Windows taskbar grouping and pinning.
-    public static final String WINDOWS_APP_USER_MODEL_ID = "org.jackhuang.hmcl";
+    public static final String WINDOWS_APP_USER_MODEL_ID = "com.mdfz.mfcl";
 
-    public static final String TITLE = NAME + " " + VERSION;
+    public static final String TITLE = NAME + " Launcher " + VERSION;
 
     /// Whether the build metadata identifies this launcher as an official build.
     public static final boolean OFFICIAL_BUILD = Boolean.parseBoolean(JarUtils.getAttribute("hmcl.official", "false"));
@@ -65,32 +65,21 @@ public final class Metadata {
     public static final String GITHUB_SHA = JarUtils.getAttribute("hmcl.version.hash", null);
 
     public static final Path CURRENT_DIRECTORY = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
-    public static final Path MINECRAFT_DIRECTORY = OperatingSystem.getWorkingDirectory("minecraft");
+    public static final Path MINECRAFT_DIRECTORY = MfclPaths.MINECRAFT;
     public static final Path HMCL_USER_HOME;
     public static final Path HMCL_LOCAL_HOME;
     public static final Path DEPENDENCIES_DIRECTORY;
 
     static {
         String hmclHome = System.getProperty("hmcl.home", System.getenv("HMCL_USER_HOME"));
-        if (StringUtils.isBlank(hmclHome)) {
-            if (OperatingSystem.CURRENT_OS.isLinuxOrBSD()) {
-                String xdgData = System.getenv("XDG_DATA_HOME");
-                if (StringUtils.isNotBlank(xdgData)) {
-                    HMCL_USER_HOME = Path.of(xdgData, "hmcl").toAbsolutePath().normalize();
-                } else {
-                    HMCL_USER_HOME = Path.of(System.getProperty("user.home"), ".local", "share", "hmcl").toAbsolutePath().normalize();
-                }
-            } else {
-                HMCL_USER_HOME = OperatingSystem.getWorkingDirectory("hmcl");
-            }
-        } else {
-            HMCL_USER_HOME = Path.of(hmclHome).toAbsolutePath().normalize();
-        }
+        HMCL_USER_HOME = StringUtils.isNotBlank(hmclHome)
+                ? Path.of(hmclHome).toAbsolutePath().normalize()
+                : MfclPaths.HOME;
 
         String hmclCurrentDir = System.getProperty("hmcl.dir", System.getenv("HMCL_LOCAL_HOME"));
         HMCL_LOCAL_HOME = StringUtils.isNotBlank(hmclCurrentDir)
                 ? Path.of(hmclCurrentDir).toAbsolutePath().normalize()
-                : CURRENT_DIRECTORY.resolve(".hmcl");
+                : MfclPaths.CONFIG;
 
         String hmclDependencies = System.getProperty("hmcl.dependencies.dir", System.getenv("HMCL_DEPENDENCIES_DIR"));
         DEPENDENCIES_DIRECTORY = StringUtils.isNotBlank(hmclDependencies)

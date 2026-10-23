@@ -22,6 +22,7 @@ import com.jfoenix.controls.JFXDialogLayout;
 import com.jfoenix.validation.base.ValidatorBase;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
+import javafx.animation.PauseTransition;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyStringProperty;
@@ -31,6 +32,8 @@ import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.ButtonBase;
 import javafx.scene.control.Label;
+import javafx.scene.image.PixelReader;
+import javafx.scene.image.WritableImage;
 import javafx.scene.layout.Region;
 import javafx.stage.*;
 import javafx.util.Duration;
@@ -56,6 +59,8 @@ import org.jackhuang.hmcl.ui.decorator.Decorator;
 import org.jackhuang.hmcl.ui.download.DownloadPage;
 import org.jackhuang.hmcl.ui.main.LauncherSettingsPage;
 import org.jackhuang.hmcl.ui.main.RootPage;
+import org.jackhuang.hmcl.ui.mfmc.MfmcRootPage;
+import org.jackhuang.hmcl.ui.mfmc.MfmcUiMode;
 import org.jackhuang.hmcl.ui.terracotta.TerracottaPage;
 import org.jackhuang.hmcl.ui.instances.GameListPage;
 import org.jackhuang.hmcl.ui.instances.GameInstancePage;
@@ -71,6 +76,9 @@ import org.jackhuang.hmcl.util.platform.OperatingSystem;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
@@ -127,10 +135,13 @@ public final class Controllers {
 
     public static ReadOnlyStringProperty launcherTitleProperty() {
         if (launcherTitle == null) {
-            launcherTitle = new SimpleStringProperty(Controllers.class, "launcherTitle", Metadata.OFFICIAL_BUILD
-                    ? i18n("launcher.title", Metadata.VERSION)
-                    : i18n("launcher.title.unofficial", Metadata.VERSION));
-            if (Metadata.OFFICIAL_BUILD) {
+            launcherTitle = new SimpleStringProperty(Controllers.class, "launcherTitle",
+                    MfmcUiMode.isEnabled()
+                            ? Metadata.TITLE + " (Internal)"
+                            : (Metadata.OFFICIAL_BUILD
+                                    ? i18n("launcher.title", Metadata.VERSION)
+                                    : i18n("launcher.title.unofficial", Metadata.VERSION)));
+            if (Metadata.OFFICIAL_BUILD && !MfmcUiMode.isEnabled()) {
                 @Nullable Boolean selfVerified = IntegrityChecker.getSelfVerified();
                 if (selfVerified != null) {
                     if (!selfVerified) {
@@ -275,14 +286,18 @@ public final class Controllers {
 
         configureMainStage(stage);
 
-        decorator = new Decorator(getRootPage(), Controllers::configureMainStage);
+        boolean mfmcUi = MfmcUiMode.isEnabled();
+        Node mainPage = mfmcUi ? new MfmcRootPage() : getRootPage();
+        decorator = new Decorator(mainPage, Controllers::configureMainStage);
         Scene mainScene = decorator.attachStage(stage);
-        getRootPage().getMainPage().showUpdateProperty().bind(UpdateChecker.checkingUpdateProperty().not().and(UpdateChecker.outdatedProperty()));
-        getRootPage().getMainPage().showUpdateDialogProperty().bind(
-                decorator.backableProperty().not()
-                        .and(getRootPage().getMainPage().showUpdateProperty())
-                        .and(settings().disableAutoShowUpdateDialogProperty().not())
-        );
+        if (!mfmcUi) {
+            getRootPage().getMainPage().showUpdateProperty().bind(UpdateChecker.checkingUpdateProperty().not().and(UpdateChecker.outdatedProperty()));
+            getRootPage().getMainPage().showUpdateDialogProperty().bind(
+                    decorator.backableProperty().not()
+                            .and(getRootPage().getMainPage().showUpdateProperty())
+                            .and(settings().disableAutoShowUpdateDialogProperty().not())
+            );
+        }
 
         if (settings().commonDirectoryTypeProperty().get() == EnumCommonDirectory.CUSTOM &&
                 !FileUtils.canCreateDirectory(settings().getResolvedCommonDirectory())) {
@@ -353,7 +368,7 @@ public final class Controllers {
                     .build());
         }
 
-        if (SettingsManager.userState().agreementVersionProperty().get() < 1) {
+        if (!MfmcUiMode.isEnabled() && SettingsManager.userState().agreementVersionProperty().get() < 1) {
             JFXDialogLayout agreementPane = new JFXDialogLayout();
             agreementPane.setHeading(new Label(i18n("launcher.agreement")));
             agreementPane.setBody(new Label(i18n("launcher.agreement.hint")));
@@ -421,6 +436,42 @@ public final class Controllers {
         }
 
         tryInstallBundledModpack(GameDirectoryManager.getSelectedRepository());
+        maybeSaveSnapshot(mainScene);
+    }
+
+    /// Saves a scene snapshot for MFMC UI layout diagnostics.
+    ///
+    /// The snapshot is enabled only when `-Dmfmc.ui.snapshot=<path>` is set.
+    ///
+    /// @param scene the initialized main-window scene
+    private static void maybeSaveSnapshot(Scene scene) {
+        String path = System.getProperty("mfmc.ui.snapshot");
+        if (path == null || path.isBlank()) {
+            return;
+        }
+
+        PauseTransition delay = new PauseTransition(Duration.seconds(2));
+        delay.setOnFinished(event -> {
+            try {
+                WritableImage image = scene.snapshot(null);
+                int width = (int) image.getWidth();
+                int height = (int) image.getHeight();
+
+                BufferedImage buffered = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+                PixelReader reader = image.getPixelReader();
+                for (int y = 0; y < height; y++) {
+                    for (int x = 0; x < width; x++) {
+                        buffered.setRGB(x, y, reader.getArgb(x, y));
+                    }
+                }
+
+                ImageIO.write(buffered, "png", new File(path));
+                LOG.info("Saved MFMC UI snapshot to " + path);
+            } catch (IOException e) {
+                LOG.warning("Failed to save MFMC UI snapshot", e);
+            }
+        });
+        delay.play();
     }
 
     /// Offers automatic install when a package exists under `.hmcl/modpack/`.

@@ -24,7 +24,7 @@ import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
-import org.jackhuang.hmcl.Metadata;
+import org.jackhuang.hmcl.MfclPaths;
 import org.jackhuang.hmcl.game.HMCLGameInstance;
 import org.jackhuang.hmcl.game.HMCLGameRepository;
 import org.jackhuang.hmcl.game.HMCLGameRepositorySnapshot;
@@ -59,11 +59,12 @@ public final class GameDirectoryManager {
     static final GameDirectoryID HOME_GAME_DIRECTORY_ID =
             new GameDirectoryID(new UUID(0xf3eafde8506e5a77L, 0xbc88f24b4728dfb2L));
 
-    /// The default current-workspace game directory path.
-    private static final PortablePath CURRENT_GAME_DIRECTORY_PATH = PortablePath.of(".minecraft");
+    /// The default isolated workspace game directory path.
+    private static final PortablePath CURRENT_GAME_DIRECTORY_PATH =
+            PortablePath.fromPath(MfclPaths.MINECRAFT.resolve("workspace"));
 
-    /// The default user-home game directory path.
-    private static final PortablePath HOME_GAME_DIRECTORY_PATH = PortablePath.fromPath(Metadata.MINECRAFT_DIRECTORY);
+    /// The default isolated home game directory path.
+    private static final PortablePath HOME_GAME_DIRECTORY_PATH = PortablePath.fromPath(MfclPaths.MINECRAFT);
 
     /// Prevents instantiation.
     private GameDirectoryManager() {

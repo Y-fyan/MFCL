@@ -30,7 +30,11 @@ import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.layout.Background;
 import javafx.scene.layout.BackgroundFill;
+import javafx.scene.layout.Border;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.BorderStroke;
+import javafx.scene.layout.BorderStrokeStyle;
+import javafx.scene.layout.BorderWidths;
 import javafx.scene.layout.CornerRadii;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
@@ -38,12 +42,15 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
+import javafx.scene.paint.Paint;
 import javafx.scene.shape.Rectangle;
+import javafx.scene.shape.SVGPath;
 import javafx.util.Duration;
 import org.glavo.monetfx.ColorRole;
 import org.glavo.monetfx.ColorScheme;
 import org.jackhuang.hmcl.Metadata;
 import org.jackhuang.hmcl.theme.Themes;
+import org.jackhuang.hmcl.ui.Controllers;
 import org.jackhuang.hmcl.ui.FXUtils;
 import org.jackhuang.hmcl.ui.SVG;
 import org.jackhuang.hmcl.ui.WeakListenerHolder;
@@ -74,6 +81,15 @@ final class MainWindowPane extends StackPane {
 
     /// The custom help, minimize, and close buttons shared by both decoration styles.
     private final HBox windowButtons;
+
+    /// The help button icon.
+    private SVGPath helpIcon;
+
+    /// The minimize button icon.
+    private SVGPath minimizeIcon;
+
+    /// The close button icon.
+    private SVGPath closeIcon;
 
     /// The transition container used when the title-bar state changes.
     private final TransitionPane navBarPane;
@@ -130,6 +146,7 @@ final class MainWindowPane extends StackPane {
         InvalidationListener titleBarBackgroundListener = observable -> updateTitleBarBackground();
         Themes.colorSchemeProperty().addListener(holder.weak(titleBarBackgroundListener));
         Themes.titleBarTransparentProperty().addListener(holder.weak(titleBarBackgroundListener));
+        holder.onWeakChangeAndOperate(Themes.titleFillProperty(), color -> updateWindowButtonFill());
 
         InvalidationListener navBarListener = observable -> updateNavBar();
         decorator.stateProperty().addListener(holder.weak(navBarListener));
@@ -195,21 +212,36 @@ final class MainWindowPane extends StackPane {
 
         JFXButton helpButton = new JFXButton();
         helpButton.setFocusTraversable(false);
-        helpButton.setGraphic(SVG.HELP.createIcon(Themes.titleFillProperty()));
+        helpIcon = SVG.HELP.createIcon();
+        helpIcon.getStyleClass().remove("svg");
+        helpIcon.setFill(Themes.titleFillProperty().getValue());
+        helpButton.setGraphic(helpIcon);
         helpButton.getStyleClass().add("jfx-decorator-button");
-        helpButton.setOnAction(event -> FXUtils.openLink(Metadata.CONTACT_URL));
+        helpButton.setOnAction(event -> {
+            if (isMfmcRoot()) {
+                Controllers.dialog(Metadata.FULL_NAME + "\n" + Metadata.VERSION);
+            } else {
+                FXUtils.openLink(Metadata.CONTACT_URL);
+            }
+        });
         decorator.forbidDraggingWindow(helpButton);
 
         JFXButton minimizeButton = new JFXButton();
         minimizeButton.setFocusTraversable(false);
-        minimizeButton.setGraphic(SVG.MINIMIZE_CENTER.createIcon(Themes.titleFillProperty()));
+        minimizeIcon = SVG.MINIMIZE_CENTER.createIcon();
+        minimizeIcon.getStyleClass().remove("svg");
+        minimizeIcon.setFill(Themes.titleFillProperty().getValue());
+        minimizeButton.setGraphic(minimizeIcon);
         minimizeButton.getStyleClass().add("jfx-decorator-button");
         minimizeButton.setOnAction(event -> decorator.minimizeWindow());
         decorator.forbidDraggingWindow(minimizeButton);
 
         JFXButton closeButton = new JFXButton();
         closeButton.setFocusTraversable(false);
-        closeButton.setGraphic(SVG.CLOSE.createIcon(Themes.titleFillProperty()));
+        closeIcon = SVG.CLOSE.createIcon();
+        closeIcon.getStyleClass().remove("svg");
+        closeIcon.setFill(Themes.titleFillProperty().getValue());
+        closeButton.setGraphic(closeIcon);
         closeButton.getStyleClass().add("jfx-decorator-button");
         closeButton.setOnAction(event -> decorator.closeWindow());
         decorator.forbidDraggingWindow(closeButton);
@@ -220,6 +252,21 @@ final class MainWindowPane extends StackPane {
 
     /// Recomputes the title-bar background for the current theme and transparency preference.
     private void updateTitleBarBackground() {
+        if (isMfmcRoot()) {
+            titleBar.setBackground(new Background(new BackgroundFill(
+                    Color.WHITE,
+                    CornerRadii.EMPTY,
+                    Insets.EMPTY)));
+            titleBar.setBorder(new Border(new BorderStroke(
+                    Color.web("#E6EBF3"),
+                    BorderStrokeStyle.SOLID,
+                    CornerRadii.EMPTY,
+                    new BorderWidths(0, 0, 1, 0))));
+            return;
+        }
+
+        titleBar.setBorder(null);
+
         @Nullable ColorScheme colorScheme = Themes.getColorScheme();
         if (colorScheme == null) {
             titleBar.setBackground(null);
@@ -237,8 +284,28 @@ final class MainWindowPane extends StackPane {
         }
     }
 
+    /// Returns whether the current page is the MFMC root page.
+    private boolean isMfmcRoot() {
+        if (decorator.getNavigator().size() == 0) {
+            return false;
+        }
+        Node page = decorator.getNavigator().getCurrentPage();
+        return page != null && page.getStyleClass().contains("mfmc-root");
+    }
+
+    /// Updates the window-button icon fill for the current page.
+    private void updateWindowButtonFill() {
+        Paint fill = isMfmcRoot() ? Color.web("#6B7280") : Themes.titleFillProperty().getValue();
+        helpIcon.setFill(fill);
+        minimizeIcon.setFill(fill);
+        closeIcon.setFill(fill);
+    }
+
     /// Rebuilds the navigation bar from the current page state.
     private void updateNavBar() {
+        updateTitleBarBackground();
+        updateWindowButtonFill();
+
         DecoratorPage.@Nullable State state = decorator.getState();
         if (state == null) {
             navBarPane.getChildren().clear();
