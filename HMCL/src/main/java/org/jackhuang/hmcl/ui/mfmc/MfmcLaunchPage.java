@@ -24,14 +24,12 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
 import javafx.scene.canvas.Canvas;
+import com.jfoenix.controls.JFXPopup;
 import javafx.scene.control.Button;
 import javafx.scene.control.ContentDisplay;
-import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
-import javafx.scene.control.MenuItem;
-import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -269,27 +267,96 @@ public final class MfmcLaunchPage extends GridPane {
 
     /// Shows the account switcher below the account block.
     private void showAccountMenu(HBox anchor) {
-        ContextMenu menu = new ContextMenu();
+        VBox card = new VBox(2);
+        card.getStyleClass().add("mfmc-account-menu");
+        card.setPrefWidth(220);
+
+        var stylesheet = MfmcLaunchPage.class.getResource("/assets/css/mfmc-light.css");
+        if (stylesheet != null) {
+            card.getStylesheets().add(stylesheet.toExternalForm());
+        }
+
+        Label header = new Label("账号");
+        header.getStyleClass().add("mfmc-account-menu-header");
+        card.getChildren().add(header);
+
+        JFXPopup popup = new JFXPopup(card);
+        Account selected = Accounts.getSelectedAccount();
 
         for (Account account : Accounts.getAccounts()) {
-            MenuItem item = new MenuItem(account.getProfileName());
-            item.setOnAction(event -> Accounts.setSelectedAccount(account));
-            menu.getItems().add(item);
+            boolean isSelected = selected != null
+                    && selected.getAccountID().equals(account.getAccountID());
+            card.getChildren().add(createAccountMenuRow(account, isSelected, popup));
         }
 
-        if (!menu.getItems().isEmpty()) {
-            menu.getItems().add(new SeparatorMenuItem());
+        if (!Accounts.getAccounts().isEmpty()) {
+            Region divider = new Region();
+            divider.getStyleClass().add("mfmc-account-menu-divider");
+            card.getChildren().add(divider);
         }
 
-        MenuItem addAccount = new MenuItem("添加账号");
-        addAccount.setOnAction(event -> Controllers.dialog(new CreateAccountPane()));
-        menu.getItems().add(addAccount);
+        card.getChildren().addAll(
+                createAccountMenuAction("添加账号", SVG.ADD_CIRCLE, true, popup,
+                        () -> Controllers.dialog(new CreateAccountPane())),
+                createAccountMenuAction("管理账号", SVG.PERSON, false, popup,
+                        () -> Controllers.navigate(Controllers.getAccountListPage()))
+        );
 
-        MenuItem manageAccounts = new MenuItem("管理账号");
-        manageAccounts.setOnAction(event -> Controllers.navigate(Controllers.getAccountListPage()));
-        menu.getItems().add(manageAccounts);
+        popup.show(anchor, JFXPopup.PopupVPosition.BOTTOM, JFXPopup.PopupHPosition.LEFT, 0, 8);
+    }
 
-        menu.show(anchor, javafx.geometry.Side.BOTTOM, 0, 8);
+    /// Creates one account row in the account menu.
+    private HBox createAccountMenuRow(Account account, boolean selected, JFXPopup popup) {
+        Label name = new Label(StringUtils.isBlank(account.getProfileName())
+                ? account.getProfileID().toString()
+                : account.getProfileName());
+        name.getStyleClass().add("mfmc-account-menu-text");
+
+        Label type = new Label(Accounts.getLocalizedLoginTypeName(Accounts.getAccountFactory(account)));
+        type.getStyleClass().add("mfmc-account-menu-subtext");
+
+        VBox labels = new VBox(1, name, type);
+        HBox.setHgrow(labels, Priority.ALWAYS);
+
+        HBox row = new HBox(10, labels);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.getStyleClass().add("mfmc-account-menu-item");
+        row.setCursor(Cursor.HAND);
+
+        if (selected) {
+            row.getStyleClass().add("selected");
+            SVGContainer check = SVG.CHECK.createIcon(14);
+            check.getStyleClass().add("mfmc-account-menu-check");
+            row.getChildren().add(check);
+        }
+
+        row.setOnMouseClicked(event -> {
+            Accounts.setSelectedAccount(account);
+            popup.hide();
+        });
+        return row;
+    }
+
+    /// Creates one action row in the account menu.
+    private HBox createAccountMenuAction(String text, SVG icon, boolean accent, JFXPopup popup, Runnable action) {
+        SVGContainer iconNode = icon.createIcon(16);
+        iconNode.getStyleClass().add("mfmc-account-menu-icon");
+
+        Label label = new Label(text);
+        label.getStyleClass().add("mfmc-account-menu-text");
+        if (accent) {
+            label.getStyleClass().add("accent");
+        }
+
+        HBox row = new HBox(10, iconNode, label);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.getStyleClass().add("mfmc-account-menu-item");
+        row.setCursor(Cursor.HAND);
+        row.setOnMouseClicked(event -> {
+            popup.hide();
+            action.run();
+        });
+        return row;
     }
 
     /// Describes an instance by its game version and mod loaders.

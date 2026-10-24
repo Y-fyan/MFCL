@@ -224,6 +224,67 @@
     -fx-fill: -mfmc-text-faint;
 }
 
+/* Account popup */
+
+.mfmc-account-menu {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 14;
+    -fx-border-color: #E6EBF3;
+    -fx-border-radius: 14;
+    -fx-padding: 6;
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.18), 18, 0.12, 0, 6);
+}
+
+.mfmc-account-menu-header {
+    -fx-font-size: 11px;
+    -fx-text-fill: #9AA3B2;
+    -fx-padding: 6 10 4 10;
+}
+
+.mfmc-account-menu-item {
+    -fx-padding: 8 10;
+    -fx-background-color: transparent;
+    -fx-background-radius: 9;
+}
+
+.mfmc-account-menu-item:hover {
+    -fx-background-color: #F1F5FB;
+}
+
+.mfmc-account-menu-item.selected {
+    -fx-background-color: #EEF7F2;
+}
+
+.mfmc-account-menu-text {
+    -fx-font-size: 13px;
+    -fx-text-fill: #111827;
+}
+
+.mfmc-account-menu-text.accent {
+    -fx-text-fill: #4F7CFF;
+    -fx-font-weight: bold;
+}
+
+.mfmc-account-menu-subtext {
+    -fx-font-size: 10px;
+    -fx-text-fill: #9AA3B2;
+}
+
+.mfmc-account-menu-icon .svg {
+    -fx-fill: #6B7280;
+}
+
+.mfmc-account-menu-check .svg {
+    -fx-fill: #3C8527;
+}
+
+.mfmc-account-menu-divider {
+    -fx-min-height: 1;
+    -fx-pref-height: 1;
+    -fx-background-color: #E6EBF3;
+    -fx-opacity: 0.8;
+}
+
 /* Launch button */
 
 .mfmc-launch-button {
