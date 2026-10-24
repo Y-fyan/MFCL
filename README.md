@@ -57,6 +57,12 @@ java -Dhmcl.ui=mfmc -jar HMCL/build/libs/HMCL-*.jar
 MICROSOFT_AUTH_ID=<your-azure-app-id> ./gradlew :HMCL:shadowJar
 ```
 
+在 Wayland 桌面上，MFMC 会默认给使用 SDL 的游戏设置 `SDL_VIDEODRIVER=x11`，让游戏运行在 XWayland 下并保留标题栏、拖动和最小化/关闭按钮。如需恢复原生 Wayland，可加：
+
+```bash
+-Dmfmc.game.sdl.video.driver=wayland
+```
+
 请勿提交访问令牌、签名私钥或构建产物。
 
 ## 说明

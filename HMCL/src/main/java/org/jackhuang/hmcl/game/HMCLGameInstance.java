@@ -30,12 +30,14 @@ import org.jackhuang.hmcl.modpack.ModpackConfiguration;
 import org.jackhuang.hmcl.modpack.ModpackProvider;
 import org.jackhuang.hmcl.setting.*;
 import org.jackhuang.hmcl.ui.FXUtils;
+import org.jackhuang.hmcl.ui.mfmc.MfmcUiMode;
 import org.jackhuang.hmcl.util.FileSaver;
 import org.jackhuang.hmcl.util.Lang;
 import org.jackhuang.hmcl.util.StringUtils;
 import org.jackhuang.hmcl.util.gson.JsonSchema;
 import org.jackhuang.hmcl.util.gson.JsonUtils;
 import org.jackhuang.hmcl.util.io.FileUtils;
+import org.jackhuang.hmcl.util.platform.OperatingSystem;
 import org.jackhuang.hmcl.util.platform.SystemInfo;
 import org.jackhuang.hmcl.util.versioning.GameVersionNumber;
 import org.jetbrains.annotations.Contract;
@@ -48,6 +50,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -565,6 +568,27 @@ public class HMCLGameInstance extends DefaultGameInstance {
         return getLayout().getInstanceGameSettingsFile(id);
     }
 
+    /// Moves SDL-backed games to XWayland in MFMC mode on Wayland.
+    ///
+    /// SDL3's Wayland backend can create an undecorated window on some
+    /// desktops, leaving the game without a title bar and window controls.
+    /// XWayland restores server-side decorations while keeping the launcher
+    /// itself on its native display server.
+    private static void applyMfmcLinuxVideoDriver(Map<String, String> environmentVariables) {
+        if (!MfmcUiMode.isEnabled()
+                || !OperatingSystem.CURRENT_OS.isLinuxOrBSD()
+                || !"wayland".equalsIgnoreCase(System.getenv("XDG_SESSION_TYPE"))
+                || StringUtils.isBlank(System.getenv("DISPLAY"))
+                || environmentVariables.keySet().stream().anyMatch("SDL_VIDEODRIVER"::equalsIgnoreCase)) {
+            return;
+        }
+
+        String driver = System.getProperty("mfmc.game.sdl.video.driver", "x11");
+        if (StringUtils.isNotBlank(driver)) {
+            environmentVariables.put("SDL_VIDEODRIVER", driver);
+        }
+    }
+
     public LaunchOptions.Builder getLaunchOptions(
             JavaRuntime javaRuntime,
             Path javaExecutable,
@@ -588,6 +612,17 @@ public class HMCLGameInstance extends DefaultGameInstance {
             maxMemory = vs.getMaxMemory();
         }
 
+        Map<String, String> environmentVariables = Lang.mapOf(
+                StringUtils.tokenize(vs.getInheritable(GameSettings::environmentVariablesProperty))
+                        .stream()
+                        .map(it -> {
+                            int idx = it.indexOf('=');
+                            return idx >= 0 ? pair(it.substring(0, idx), it.substring(idx + 1)) : pair(it, "");
+                        })
+                        .collect(Collectors.toList())
+        );
+        applyMfmcLinuxVideoDriver(environmentVariables);
+
         LaunchOptions.Builder builder = new LaunchOptions.Builder()
                 .setInstanceId(getId())
                 .setGameDir(gameDir)
@@ -601,16 +636,7 @@ public class HMCLGameInstance extends DefaultGameInstance {
                 .setMaxMemory(maxMemory)
                 .setMinMemory(vs.getInheritable(GameSettings::minMemoryProperty))
                 .setMetaspace(Lang.toIntOrNull(vs.getInheritable(GameSettings::permSizeProperty)))
-                .setEnvironmentVariables(
-                        Lang.mapOf(StringUtils.tokenize(vs.getInheritable(GameSettings::environmentVariablesProperty))
-                                .stream()
-                                .map(it -> {
-                                    int idx = it.indexOf('=');
-                                    return idx >= 0 ? pair(it.substring(0, idx), it.substring(idx + 1)) : pair(it, "");
-                                })
-                                .collect(Collectors.toList())
-                        )
-                )
+                .setEnvironmentVariables(environmentVariables)
                 .setWidth(vs.getWidth())
                 .setHeight(vs.getHeight())
                 .setFullscreen(vs.getInheritable(GameSettings::windowTypeProperty) == GameWindowType.FULLSCREEN)
