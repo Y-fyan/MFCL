@@ -453,6 +453,156 @@
     -fx-text-fill: -mfmc-text-faint;
 }
 
+/* Game install page */
+
+.mfmc-install-page {
+    -fx-background-color: transparent;
+}
+
+.mfmc-install-header {
+    -fx-padding: 0 2 10 2;
+}
+
+.mfmc-root .mfmc-install-back {
+    -fx-background-color: transparent;
+    -fx-background-radius: 999;
+    -fx-padding: 5;
+    -fx-cursor: hand;
+}
+
+.mfmc-root .mfmc-install-back:hover {
+    -fx-background-color: -mfmc-surface-muted;
+}
+
+.mfmc-root .mfmc-install-back .svg {
+    -fx-fill: -mfmc-text-muted;
+}
+
+.mfmc-install-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmc-install-tag {
+    -fx-background-color: -mfmc-primary-soft;
+    -fx-background-radius: 999;
+    -fx-padding: 4 10 4 10;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #315BDB;
+}
+
+.mfmc-install-scroll,
+.mfmc-install-scroll > .viewport {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+}
+
+.mfmc-install-scroll {
+    -fx-padding: 0;
+}
+
+.mfmc-install-scroll .scroll-bar:vertical {
+    -fx-pref-width: 8;
+    -fx-background-color: transparent;
+}
+
+.mfmc-install-scroll .scroll-bar:vertical .thumb {
+    -fx-background-color: #D5DCE8;
+    -fx-background-radius: 999;
+}
+
+.mfmc-install-content {
+    -fx-background-color: transparent;
+}
+
+.mfmc-install-card {
+    -fx-background-color: -mfmc-surface;
+    -fx-background-radius: 14;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 14;
+    -fx-padding: 12 14 12 14;
+}
+
+.mfmc-install-version {
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmc-install-subtitle {
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmc-text-muted;
+}
+
+.mfmc-install-section-title {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmc-install-section-hint {
+    -fx-font-size: 10px;
+    -fx-text-fill: -mfmc-text-faint;
+}
+
+.mfmc-install-name-field {
+    -fx-pref-height: 34;
+}
+
+.mfmc-install-loaders {
+    -fx-padding: 2 0 0 0;
+}
+
+.mfmc-install-loaders .installer-item-wrapper {
+    -fx-background-radius: 10;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 10;
+}
+
+.mfmc-install-loaders .installer-item-wrapper .installer-item:list-item {
+    -fx-border-width: 0;
+    -fx-background-radius: 10;
+}
+
+.mfmc-install-actionbar {
+    -fx-padding: 10 2 0 2;
+    -fx-border-color: -mfmc-border transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+
+.mfmc-install-path {
+    -fx-font-size: 10px;
+    -fx-text-fill: -mfmc-text-faint;
+}
+
+.mfmc-root .mfmc-install-button {
+    -fx-background-color: -mfmc-green;
+    -fx-background-radius: 10;
+    -fx-padding: 8 20 8 20;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+    -fx-cursor: hand;
+}
+
+.mfmc-root .mfmc-install-button:hover {
+    -fx-background-color: -mfmc-green-hover;
+}
+
+.mfmc-root .mfmc-install-button:pressed {
+    -fx-background-color: -mfmc-green-pressed;
+}
+
+.mfmc-root .mfmc-install-button:disabled {
+    -fx-opacity: 0.45;
+}
+
+.mfmc-install-selection {
+    -fx-background-color: transparent;
+}
+
 /* Embedded classic pages */
 
 .mfmc-embedded-page {

@@ -32,6 +32,8 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import org.jackhuang.hmcl.Metadata;
+import org.jackhuang.hmcl.download.game.GameRemoteVersion;
 import org.jackhuang.hmcl.game.HMCLGameRepository;
 import org.jackhuang.hmcl.game.ModpackHelper;
 import org.jackhuang.hmcl.setting.GameDirectoryManager;
@@ -87,6 +89,9 @@ public final class MfmcRootPage extends StackPane implements DecoratorPage {
     /// Creates the MFMC root page.
     public MfmcRootPage() {
         LOG.info("Initializing MFMC UI root");
+        LOG.info("MFMC isolated config home: " + Metadata.HMCL_LOCAL_HOME);
+        LOG.info("MFMC isolated user home: " + Metadata.HMCL_USER_HOME);
+        LOG.info("MFMC isolated game directory: " + Metadata.MINECRAFT_DIRECTORY);
         getStyleClass().add("mfmc-root");
 
         var stylesheet = MfmcRootPage.class.getResource("/assets/css/mfmc-light.css");
@@ -194,6 +199,12 @@ public final class MfmcRootPage extends StackPane implements DecoratorPage {
         tab.setSelected(true);
     }
 
+    /// Shows the launch tab.
+    public void showLaunchTab() {
+        launchTab.setSelected(true);
+        selectTab(launchTab);
+    }
+
     /// Shows the download tab.
     public void showDownloadTab() {
         downloadTab.setSelected(true);
@@ -206,9 +217,15 @@ public final class MfmcRootPage extends StackPane implements DecoratorPage {
         selectTab(settingsTab);
     }
 
+    /// Opens the MFMC-owned install page for the selected Minecraft version.
+    private void showGameInstallPage(GameRemoteVersion gameVersion) {
+        downloadTab.setSelected(true);
+        content.getChildren().setAll(new MfmcGameInstallPage(gameVersion, this::showDownloadTab, this::showLaunchTab));
+    }
+
     /// Creates the classic download page inside the new top-level shell.
     private DownloadPage createDownloadPage() {
-        DownloadPage page = new DownloadPage();
+        DownloadPage page = new DownloadPage(null, this::showGameInstallPage);
         page.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         page.getStyleClass().add("mfmc-embedded-page");
         return page;

@@ -302,7 +302,11 @@ public final class Controllers {
         if (settings().commonDirectoryTypeProperty().get() == EnumCommonDirectory.CUSTOM &&
                 !FileUtils.canCreateDirectory(settings().getResolvedCommonDirectory())) {
             settings().commonDirectoryTypeProperty().set(EnumCommonDirectory.DEFAULT);
-            dialog(i18n("launcher.cache_directory.invalid"));
+            if (MfmcUiMode.isEnabled()) {
+                LOG.warning("Invalid custom cache directory; reset to the MFMC default directory");
+            } else {
+                dialog(i18n("launcher.cache_directory.invalid"));
+            }
         }
 
         Lang.thread(JavaManager::initialize, "Search Java", true);
@@ -315,7 +319,10 @@ public final class Controllers {
                 userState.platformPromptVersionProperty().set(1);
             };
 
-            if (OperatingSystem.CURRENT_OS == OperatingSystem.MACOS && Architecture.SYSTEM_ARCH == Architecture.ARM64) {
+            if (MfmcUiMode.isEnabled()) {
+                LOG.warning("Unsupported platform: " + Architecture.SYSTEM_ARCH + "; MFMC startup dialog is suppressed");
+                continueAction.run();
+            } else if (OperatingSystem.CURRENT_OS == OperatingSystem.MACOS && Architecture.SYSTEM_ARCH == Architecture.ARM64) {
                 continueAction.run();
             } else if (OperatingSystem.CURRENT_OS == OperatingSystem.WINDOWS && Architecture.SYSTEM_ARCH == Architecture.ARM64) {
                 Controllers.dialog(i18n("fatal.unsupported_platform.windows_arm64"), null, MessageType.INFO, continueAction);
@@ -337,35 +344,54 @@ public final class Controllers {
                 LOG.warning("Invalid type for shown tips key: " + JAVA_VERSION_TIP, e);
             }
             if (shownTipVersion == null || shownTipVersion.intValue() < Metadata.MINIMUM_SUPPORTED_JAVA_VERSION) {
-                MessageDialogPane.Builder builder = new MessageDialogPane.Builder(i18n("fatal.deprecated_java_version"), null, MessageType.WARNING);
-                String downloadLink = Metadata.getSuggestedJavaDownloadLink();
-                if (downloadLink != null)
-                    builder.addHyperLink(
-                            i18n("fatal.deprecated_java_version.download_link", Metadata.RECOMMENDED_JAVA_VERSION),
-                            downloadLink
-                    );
-                Controllers.dialog(builder
-                        .ok(() -> state().getShownTips().put(JAVA_VERSION_TIP, Metadata.MINIMUM_SUPPORTED_JAVA_VERSION))
+                if (MfmcUiMode.isEnabled()) {
+                    LOG.warning("Java " + JavaRuntime.CURRENT_VERSION
+                            + " is below the recommended version; MFMC startup dialog is suppressed");
+                    state().getShownTips().put(JAVA_VERSION_TIP, Metadata.MINIMUM_SUPPORTED_JAVA_VERSION);
+                } else {
+                    MessageDialogPane.Builder builder = new MessageDialogPane.Builder(i18n("fatal.deprecated_java_version"), null, MessageType.WARNING);
+                    String downloadLink = Metadata.getSuggestedJavaDownloadLink();
+                    if (downloadLink != null)
+                        builder.addHyperLink(
+                                i18n("fatal.deprecated_java_version.download_link", Metadata.RECOMMENDED_JAVA_VERSION),
+                                downloadLink
+                        );
+                    Controllers.dialog(builder
+                            .ok(() -> state().getShownTips().put(JAVA_VERSION_TIP, Metadata.MINIMUM_SUPPORTED_JAVA_VERSION))
+                            .build());
+                }
+            }
+        }
+
+        // Check whether JIT is enabled in the current environment.
+        // The MFMC shell keeps startup clean and records environment hints in the log instead
+        // of opening a classic HMCL-branded warning dialog.
+        if (!JavaRuntime.CURRENT_JIT_ENABLED) {
+            if (MfmcUiMode.isEnabled()) {
+                LOG.warning("Java JIT is disabled; the MFMC startup dialog is suppressed");
+                state().getShownTips().put(JAVA_INTERPRETED_MODE_TIP, true);
+            } else if (!Boolean.TRUE.equals(state().getShownTips().get(JAVA_INTERPRETED_MODE_TIP))) {
+                Controllers.dialog(new MessageDialogPane.Builder(i18n("warning.java_interpreted_mode"), i18n("message.warning"), MessageType.WARNING)
+                        .ok(null)
+                        .addCancel(i18n("button.do_not_show_again"), () ->
+                                state().getShownTips().put(JAVA_INTERPRETED_MODE_TIP, true))
                         .build());
             }
         }
 
-        // Check whether JIT is enabled in the current environment
-        if (!JavaRuntime.CURRENT_JIT_ENABLED && !Boolean.TRUE.equals(state().getShownTips().get(JAVA_INTERPRETED_MODE_TIP))) {
-            Controllers.dialog(new MessageDialogPane.Builder(i18n("warning.java_interpreted_mode"), i18n("message.warning"), MessageType.WARNING)
-                    .ok(null)
-                    .addCancel(i18n("button.do_not_show_again"), () ->
-                            state().getShownTips().put(JAVA_INTERPRETED_MODE_TIP, true))
-                    .build());
-        }
-
-        // Check whether hardware acceleration is enabled
-        if (!FXUtils.GPU_ACCELERATION_ENABLED && !Boolean.TRUE.equals(state().getShownTips().get(SOFTWARE_RENDERING))) {
-            Controllers.dialog(new MessageDialogPane.Builder(i18n("warning.software_rendering"), i18n("message.warning"), MessageType.WARNING)
-                    .ok(null)
-                    .addCancel(i18n("button.do_not_show_again"), () ->
-                            state().getShownTips().put(SOFTWARE_RENDERING, true))
-                    .build());
+        // Check whether hardware acceleration is enabled.
+        // Software-rendering warnings are logged in MFMC mode for the same reason.
+        if (!FXUtils.GPU_ACCELERATION_ENABLED) {
+            if (MfmcUiMode.isEnabled()) {
+                LOG.warning("Hardware acceleration is unavailable; the MFMC startup dialog is suppressed");
+                state().getShownTips().put(SOFTWARE_RENDERING, true);
+            } else if (!Boolean.TRUE.equals(state().getShownTips().get(SOFTWARE_RENDERING))) {
+                Controllers.dialog(new MessageDialogPane.Builder(i18n("warning.software_rendering"), i18n("message.warning"), MessageType.WARNING)
+                        .ok(null)
+                        .addCancel(i18n("button.do_not_show_again"), () ->
+                                state().getShownTips().put(SOFTWARE_RENDERING, true))
+                        .build());
+            }
         }
 
         if (!MfmcUiMode.isEnabled() && SettingsManager.userState().agreementVersionProperty().get() < 1) {

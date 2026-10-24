@@ -124,16 +124,28 @@ public final class Launcher extends Application {
             }
 
             if (SettingsManager.isOwnerChanged()) {
-                if (showAlert(AlertType.WARNING, i18n("fatal.config_change_owner_root"), ButtonType.YES, ButtonType.NO) == ButtonType.NO)
+                if (MfmcUiMode.isEnabled()) {
+                    LOG.warning("The MFMC config directory is owned by another user: "
+                            + SettingsManager.localConfigDirectory());
+                } else if (showAlert(AlertType.WARNING, i18n("fatal.config_change_owner_root"), ButtonType.YES, ButtonType.NO) == ButtonType.NO) {
                     return;
+                }
             }
 
             if (SettingsManager.hasReadOnlyCoreSettings()) {
-                showAlert(AlertType.WARNING, i18n("fatal.config_unsupported_version"));
+                if (MfmcUiMode.isEnabled()) {
+                    LOG.warning("The MFMC core settings are read-only");
+                } else {
+                    showAlert(AlertType.WARNING, i18n("fatal.config_unsupported_version"));
+                }
             }
 
             if (Metadata.HMCL_LOCAL_HOME.toString().indexOf('=') >= 0) {
-                showAlert(AlertType.WARNING, i18n("fatal.illegal_char"));
+                if (MfmcUiMode.isEnabled()) {
+                    LOG.warning("The MFMC config path contains '=': " + Metadata.HMCL_LOCAL_HOME);
+                } else {
+                    showAlert(AlertType.WARNING, i18n("fatal.illegal_char"));
+                }
             }
 
             // runLater to ensure SettingsManager.init() finished initialization
@@ -270,9 +282,18 @@ public final class Launcher extends Application {
     }
 
     private static void checkConfigInTempDir() {
-        if (SettingsManager.isNewlyCreated() && isConfigInTempDir()
-                && !confirmWithCountdown(AlertType.WARNING, i18n("fatal.config_in_temp_dir"), 5)) {
-            EntryPoint.exit(0);
+        if (SettingsManager.isNewlyCreated() && isConfigInTempDir()) {
+            if (MfmcUiMode.isEnabled()) {
+                // The MFMC shell uses its own isolated directory. Keep the classic
+                // HMCL warning out of the new UI and leave a diagnostic log instead.
+                LOG.warning("The MFMC config directory is under a temporary path: "
+                        + SettingsManager.localConfigDirectory());
+                return;
+            }
+
+            if (!confirmWithCountdown(AlertType.WARNING, i18n("fatal.config_in_temp_dir"), 5)) {
+                EntryPoint.exit(0);
+            }
         }
     }
 
@@ -342,7 +363,11 @@ public final class Launcher extends Application {
             try {
                 SettingsManager.init();
             } catch (SambaException e) {
-                EntryPoint.showWarning(i18n("fatal.samba"));
+                if (MfmcUiMode.isEnabled()) {
+                    LOG.warning("The MFMC config directory appears to be on a Samba share; startup dialog is suppressed");
+                } else {
+                    EntryPoint.showWarning(i18n("fatal.samba"));
+                }
             } catch (IOException e) {
                 LOG.error("Failed to load config", e);
                 checkConfigOwner();

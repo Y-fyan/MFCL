@@ -64,6 +64,7 @@ import org.jetbrains.annotations.Nullable;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.concurrent.CancellationException;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.jackhuang.hmcl.ui.FXUtils.runInFX;
@@ -88,16 +89,29 @@ public class DownloadPage extends DecoratorAnimatedPage implements DecoratorPage
     private final TabHeader.Tab<DownloadListPage> worldTab = new TabHeader.Tab<>("worldTab");
     private final TransitionPane transitionPane = new TransitionPane();
     private final DownloadNavigator versionPageNavigator = new DownloadNavigator();
+    private final @Nullable Consumer<GameRemoteVersion> gameSelectedCallback;
 
     private WeakListenerHolder listenerHolder;
 
     public DownloadPage() {
-        this(null);
+        this(null, null);
     }
 
     public DownloadPage(GameInstanceID uploadInstance) {
+        this(uploadInstance, null);
+    }
+
+    public DownloadPage(@Nullable GameInstanceID uploadInstance, @Nullable Consumer<GameRemoteVersion> gameSelectedCallback) {
+        this.gameSelectedCallback = gameSelectedCallback;
         newGameTab.setNodeSupplier(loadVersionFor(() -> new VersionsPage(versionPageNavigator, i18n("install.installer.choose", i18n("install.installer.game")), GameVersionNumber.unknown(), DownloadProviders.getDownloadProvider(),
-                GameComponentType.GAME, versionPageNavigator::onGameSelected)));
+                GameComponentType.GAME, () -> {
+                    GameRemoteVersion gameVersion = (GameRemoteVersion) versionPageNavigator.getSettings().get("game");
+                    if (gameSelectedCallback != null && gameVersion != null) {
+                        gameSelectedCallback.accept(gameVersion);
+                    } else {
+                        versionPageNavigator.onGameSelected();
+                    }
+                })));
         modpackTab.setNodeSupplier(loadVersionFor(() -> {
             DownloadListPage page = HMCLLocalizedDownloadListPage.ofModPack((downloadProvider, repository, __, modpack, file) -> {
                 Instances.downloadModpackImpl(downloadProvider, repository, uploadInstance, modpack, file);

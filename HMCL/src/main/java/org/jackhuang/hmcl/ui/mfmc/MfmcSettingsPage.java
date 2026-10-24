@@ -20,6 +20,7 @@ package org.jackhuang.hmcl.ui.mfmc;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
@@ -31,6 +32,7 @@ import org.jackhuang.hmcl.Metadata;
 import org.jackhuang.hmcl.game.HMCLGameInstance;
 import org.jackhuang.hmcl.setting.GameDirectoryManager;
 import org.jackhuang.hmcl.setting.GameSettings;
+import org.jackhuang.hmcl.ui.FXUtils;
 import org.jackhuang.hmcl.ui.game.GameSettingsPage;
 import org.jackhuang.hmcl.ui.main.JavaManagementPage;
 import org.jetbrains.annotations.NotNullByDefault;
@@ -128,11 +130,15 @@ public final class MfmcSettingsPage extends VBox {
         Label version = new Label("版本 " + Metadata.VERSION);
         version.getStyleClass().add("mfmc-about-version");
 
-        Label notice = new Label("仅限 MFMC 内部研发与测试，请勿对外分发。");
+        Label notice = new Label("MFMC 内部研发版本；基于 HMCL 框架开发，非 HMCL 官方发布。");
         notice.getStyleClass().add("mfmc-about-notice");
         notice.setWrapText(true);
 
-        VBox pane = new VBox(6, name, version, notice);
+        Hyperlink upstream = new Hyperlink("Hello Minecraft! Launcher (HMCL)");
+        upstream.getStyleClass().add("mfmc-link");
+        upstream.setOnAction(event -> FXUtils.openLink("https://github.com/HMCL-dev/HMCL"));
+
+        VBox pane = new VBox(6, name, version, notice, upstream);
         pane.setPadding(new Insets(16));
         return pane;
     }
