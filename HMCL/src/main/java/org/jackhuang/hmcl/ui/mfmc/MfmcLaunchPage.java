@@ -45,7 +45,6 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import javafx.scene.shape.Circle;
 import javafx.scene.text.TextAlignment;
 import javafx.util.Duration;
 import org.jackhuang.hmcl.addon.mod.ModLoaderType;
@@ -207,7 +206,6 @@ public final class MfmcLaunchPage extends StackPane {
         card.setMinWidth(0);
 
         Canvas avatar = new Canvas(60, 60);
-        avatar.setClip(new Circle(30, 30, 30));
 
         StackPane avatarFrame = new StackPane(avatar);
         avatarFrame.getStyleClass().add("mfmc-avatar-frame");

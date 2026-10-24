@@ -31,7 +31,6 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import javafx.scene.shape.Circle;
 import javafx.scene.text.TextAlignment;
 import org.jackhuang.hmcl.auth.Account;
 import org.jackhuang.hmcl.auth.AccountFactory;
@@ -201,7 +200,6 @@ public final class MfmcAccountPage extends BorderPane {
         private final HBox row;
 
         private AccountCell() {
-            avatar.setClip(new Circle(20, 20, 20));
             avatarFrame.getStyleClass().add("mfmc-account-page-avatar");
 
             name.getStyleClass().add("mfmc-account-page-name");

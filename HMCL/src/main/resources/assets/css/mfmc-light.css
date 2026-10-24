@@ -204,9 +204,9 @@
 
 .mfmc-avatar-frame {
     -fx-background-color: -mfmc-surface;
-    -fx-background-radius: 999;
+    -fx-background-radius: 0;
     -fx-border-color: -mfmc-border;
-    -fx-border-radius: 999;
+    -fx-border-radius: 0;
     -fx-padding: 2;
 }
 
@@ -757,9 +757,9 @@
 
 .mfmc-account-page-avatar {
     -fx-background-color: -mfmc-surface;
-    -fx-background-radius: 999;
+    -fx-background-radius: 0;
     -fx-border-color: -mfmc-border;
-    -fx-border-radius: 999;
+    -fx-border-radius: 0;
     -fx-min-width: 44;
     -fx-min-height: 44;
     -fx-pref-width: 44;
