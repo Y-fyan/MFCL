@@ -17,14 +17,15 @@
  */
 package org.jackhuang.hmcl.ui.mfmc;
 
+import com.jfoenix.controls.JFXPopup;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
+import javafx.scene.Node;
 import javafx.scene.canvas.Canvas;
-import com.jfoenix.controls.JFXPopup;
 import javafx.scene.control.Button;
 import javafx.scene.control.ContentDisplay;
 import javafx.scene.control.Label;
@@ -33,6 +34,7 @@ import javafx.scene.control.ListView;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
@@ -303,6 +305,22 @@ public final class MfmcLaunchPage extends GridPane {
         );
 
         popup.show(anchor, JFXPopup.PopupVPosition.BOTTOM, JFXPopup.PopupHPosition.LEFT, 0, 8);
+        isolatePopupChrome(popup);
+    }
+
+    /// Removes the rectangular JFoenix popup chrome so the rounded MFMC card is
+    /// the only visible surface while the popup animation runs.
+    private static void isolatePopupChrome(JFXPopup popup) {
+        if (popup.getSkin() == null) {
+            return;
+        }
+
+        Node root = popup.getSkin().getNode();
+        root.setEffect(null);
+
+        if (root instanceof Pane pane && !pane.getChildren().isEmpty()) {
+            pane.getChildren().get(0).setStyle("-fx-background-color: transparent; -fx-background-radius: 0;");
+        }
     }
 
     /// Creates one account row in the account menu.
