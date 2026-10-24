@@ -24,8 +24,9 @@ import javafx.animation.Timeline;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
-import javafx.geometry.Bounds;
+import javafx.event.EventHandler;
 import javafx.geometry.Insets;
+import javafx.geometry.Point2D;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
 import javafx.scene.canvas.Canvas;
@@ -34,17 +35,18 @@ import javafx.scene.control.ContentDisplay;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.text.TextAlignment;
-import javafx.stage.Popup;
 import javafx.util.Duration;
 import org.jackhuang.hmcl.addon.mod.ModLoaderType;
 import org.jackhuang.hmcl.auth.Account;
@@ -74,11 +76,23 @@ import java.util.stream.Collectors;
 /// The left column contains the selected account, the square launch button, and
 /// the version selector. The right column contains the news feed.
 @NotNullByDefault
-public final class MfmcLaunchPage extends GridPane {
+public final class MfmcLaunchPage extends StackPane {
     /// The selected repository snapshot used to refresh the version list.
     private final ObservableValue<HMCLGameRepositorySnapshot> repositorySnapshot =
             BindingMapping.of(GameDirectoryManager.selectedRepositoryProperty())
                     .flatMap(HMCLGameRepository::snapshotProperty);
+
+    /// The two-column launch layout.
+    private final GridPane layout = new GridPane();
+
+    /// The in-scene overlay used for the account menu.
+    private final Pane overlay = new Pane();
+
+    /// Catches clicks outside the account menu.
+    private final Region menuBackdrop = new Region();
+
+    /// The Escape handler installed while the account menu is open.
+    private @Nullable EventHandler<KeyEvent> escapeHandler;
 
     /// Creates the launch tab.
     ///
@@ -86,9 +100,10 @@ public final class MfmcLaunchPage extends GridPane {
     /// @param showSettings action that opens the settings tab
     public MfmcLaunchPage(Runnable showDownload, Runnable showSettings) {
         getStyleClass().add("mfmc-launch-page");
-        setHgap(16);
-        setVgap(16);
-        setPadding(new Insets(0));
+
+        layout.setHgap(16);
+        layout.setVgap(16);
+        layout.setPadding(new Insets(0));
 
         ColumnConstraints leftColumn = new ColumnConstraints();
         leftColumn.setPercentWidth(40);
@@ -98,7 +113,7 @@ public final class MfmcLaunchPage extends GridPane {
         rightColumn.setPercentWidth(60);
         rightColumn.setHgrow(Priority.ALWAYS);
 
-        getColumnConstraints().addAll(leftColumn, rightColumn);
+        layout.getColumnConstraints().addAll(leftColumn, rightColumn);
 
         VBox leftCard = createLeftCard(showDownload);
         MfmcNewsPane newsPane = new MfmcNewsPane(showDownload, showSettings);
@@ -108,8 +123,18 @@ public final class MfmcLaunchPage extends GridPane {
         GridPane.setHgrow(newsPane, Priority.ALWAYS);
         GridPane.setVgrow(newsPane, Priority.ALWAYS);
 
-        add(leftCard, 0, 0);
-        add(newsPane, 1, 0);
+        layout.add(leftCard, 0, 0);
+        layout.add(newsPane, 1, 0);
+
+        overlay.setPickOnBounds(false);
+        overlay.setVisible(false);
+        overlay.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+
+        menuBackdrop.prefWidthProperty().bind(overlay.widthProperty());
+        menuBackdrop.prefHeightProperty().bind(overlay.heightProperty());
+        menuBackdrop.setOnMousePressed(event -> hideAccountMenu());
+
+        getChildren().setAll(layout, overlay);
     }
 
     /// Builds the left column.
@@ -274,6 +299,8 @@ public final class MfmcLaunchPage extends GridPane {
 
     /// Shows the account switcher below the account block.
     private void showAccountMenu(HBox anchor) {
+        hideAccountMenu();
+
         VBox card = new VBox(2);
         card.getStyleClass().add("mfmc-account-menu");
         card.setPrefWidth(220);
@@ -287,16 +314,13 @@ public final class MfmcLaunchPage extends GridPane {
         header.getStyleClass().add("mfmc-account-menu-header");
         card.getChildren().add(header);
 
-        Popup popup = new Popup();
-        popup.setAutoHide(true);
-        popup.setHideOnEscape(true);
-
+        Runnable closeAction = this::hideAccountMenu;
         Account selected = Accounts.getSelectedAccount();
 
         for (Account account : Accounts.getAccounts()) {
             boolean isSelected = selected != null
                     && selected.getAccountID().equals(account.getAccountID());
-            card.getChildren().add(createAccountMenuRow(account, isSelected, popup));
+            card.getChildren().add(createAccountMenuRow(account, isSelected, closeAction));
         }
 
         if (!Accounts.getAccounts().isEmpty()) {
@@ -306,29 +330,35 @@ public final class MfmcLaunchPage extends GridPane {
         }
 
         card.getChildren().addAll(
-                createAccountMenuAction("添加账号", SVG.ADD_CIRCLE, true, popup,
+                createAccountMenuAction("添加账号", SVG.ADD_CIRCLE, true, closeAction,
                         () -> Controllers.dialog(new CreateAccountPane())),
-                createAccountMenuAction("管理账号", SVG.PERSON, false, popup,
+                createAccountMenuAction("管理账号", SVG.PERSON, false, closeAction,
                         () -> Controllers.navigate(Controllers.getAccountListPage()))
         );
 
-        StackPane surface = new StackPane(card);
-        surface.setPadding(new Insets(16));
-        surface.setStyle("-fx-background-color: #FFFFFF; -fx-background-radius: 18;");
-        popup.getContent().add(surface);
-
-        Bounds bounds = anchor.localToScreen(anchor.getBoundsInLocal());
-        if (bounds == null) {
-            return;
-        }
-        popup.show(anchor, bounds.getMinX() - 16, bounds.getMaxY() - 12);
-        if (popup.getScene() != null) {
-            popup.getScene().setFill(Color.WHITE);
-        }
-
+        Point2D anchorInScene = anchor.localToScene(0, 0);
+        Point2D anchorInOverlay = overlay.sceneToLocal(anchorInScene);
+        card.setLayoutX(anchorInOverlay.getX());
+        card.setLayoutY(anchorInOverlay.getY() + anchor.getHeight() + 4);
         card.setOpacity(0);
         card.setScaleX(0.96);
         card.setScaleY(0.96);
+
+        overlay.getChildren().setAll(menuBackdrop, card);
+        overlay.setVisible(true);
+        overlay.setMouseTransparent(false);
+        overlay.toFront();
+
+        var scene = getScene();
+        if (scene != null) {
+            escapeHandler = event -> {
+                if (event.getCode() == KeyCode.ESCAPE) {
+                    hideAccountMenu();
+                    event.consume();
+                }
+            };
+            scene.addEventFilter(KeyEvent.KEY_PRESSED, escapeHandler);
+        }
 
         Timeline animation = new Timeline(
                 new KeyFrame(Duration.ZERO,
@@ -343,8 +373,20 @@ public final class MfmcLaunchPage extends GridPane {
         animation.play();
     }
 
+    /// Hides the account menu and releases its Escape handler.
+    private void hideAccountMenu() {
+        overlay.setVisible(false);
+        overlay.getChildren().clear();
+
+        var scene = getScene();
+        if (scene != null && escapeHandler != null) {
+            scene.removeEventFilter(KeyEvent.KEY_PRESSED, escapeHandler);
+        }
+        escapeHandler = null;
+    }
+
     /// Creates one account row in the account menu.
-    private HBox createAccountMenuRow(Account account, boolean selected, Popup popup) {
+    private HBox createAccountMenuRow(Account account, boolean selected, Runnable closeAction) {
         Label name = new Label(StringUtils.isBlank(account.getProfileName())
                 ? account.getProfileID().toString()
                 : account.getProfileName());
@@ -370,13 +412,13 @@ public final class MfmcLaunchPage extends GridPane {
 
         row.setOnMouseClicked(event -> {
             Accounts.setSelectedAccount(account);
-            popup.hide();
+            closeAction.run();
         });
         return row;
     }
 
     /// Creates one action row in the account menu.
-    private HBox createAccountMenuAction(String text, SVG icon, boolean accent, Popup popup, Runnable action) {
+    private HBox createAccountMenuAction(String text, SVG icon, boolean accent, Runnable closeAction, Runnable action) {
         SVGContainer iconNode = icon.createIcon(16);
         iconNode.getStyleClass().add("mfmc-account-menu-icon");
 
@@ -391,7 +433,7 @@ public final class MfmcLaunchPage extends GridPane {
         row.getStyleClass().add("mfmc-account-menu-item");
         row.setCursor(Cursor.HAND);
         row.setOnMouseClicked(event -> {
-            popup.hide();
+            closeAction.run();
             action.run();
         });
         return row;
