@@ -173,7 +173,7 @@ public final class MfmcRootPage extends StackPane implements DecoratorPage {
         Label brandSub = new Label("LAUNCHER");
         brandSub.getStyleClass().add("mfmc-brand-sub");
 
-        HBox brandBox = new HBox(6, brand, brandSub);
+        HBox brandBox = new HBox(6, createMfmcIcon(30), brand, brandSub);
         brandBox.setAlignment(Pos.CENTER_LEFT);
 
         HBox tabs = new HBox(4, launchTab, downloadTab, settingsTab);
@@ -191,15 +191,22 @@ public final class MfmcRootPage extends StackPane implements DecoratorPage {
         return topBar;
     }
 
+    /// Creates the MFMC brand icon at the requested size.
+    private static ImageView createMfmcIcon(double size) {
+        ImageView icon = new ImageView(FXUtils.newBuiltinImage("/assets/img/icon-title-mfmc@2x.png"));
+        icon.setFitWidth(size);
+        icon.setFitHeight(size);
+        icon.setPreserveRatio(true);
+        icon.setSmooth(true);
+        return icon;
+    }
+
     /// Creates the title node displayed by the window decorator.
     private Node createTitleNode() {
         HBox titleNode = new HBox(8);
         titleNode.setAlignment(Pos.CENTER_LEFT);
 
-        ImageView icon = new ImageView(FXUtils.newBuiltinImage("/assets/img/icon-title.png"));
-        icon.setFitWidth(20);
-        icon.setFitHeight(20);
-        icon.setPreserveRatio(true);
+        ImageView icon = createMfmcIcon(20);
 
         Label title = new Label("MFMC Launcher");
         title.getStyleClass().add("mfmc-window-title");

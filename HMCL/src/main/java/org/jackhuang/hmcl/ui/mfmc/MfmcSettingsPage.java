@@ -21,6 +21,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Hyperlink;
+import javafx.scene.image.ImageView;
 import javafx.scene.control.Label;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
@@ -132,6 +133,16 @@ public final class MfmcSettingsPage extends VBox {
         Label version = new Label("版本 " + Metadata.VERSION);
         version.getStyleClass().add("mfmc-about-version");
 
+        ImageView logo = new ImageView(FXUtils.newBuiltinImage("/assets/img/icon-mfmc.png"));
+        logo.setFitWidth(72);
+        logo.setFitHeight(72);
+        logo.setPreserveRatio(true);
+        logo.setSmooth(true);
+
+        VBox identity = new VBox(2, name, version);
+        HBox header = new HBox(14, logo, identity);
+        header.setAlignment(Pos.CENTER_LEFT);
+
         Label notice = new Label("MFMC 内部研发版本；基于 HMCL 框架开发，非 HMCL 官方发布。");
         notice.getStyleClass().add("mfmc-about-notice");
         notice.setWrapText(true);
@@ -140,7 +151,7 @@ public final class MfmcSettingsPage extends VBox {
         upstream.getStyleClass().add("mfmc-link");
         upstream.setOnAction(event -> FXUtils.openLink("https://github.com/HMCL-dev/HMCL"));
 
-        VBox pane = new VBox(6, name, version, notice, upstream);
+        VBox pane = new VBox(10, header, notice, upstream);
         pane.setPadding(new Insets(16));
         return pane;
     }

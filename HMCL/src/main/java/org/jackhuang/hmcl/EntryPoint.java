@@ -23,6 +23,7 @@ import org.jackhuang.hmcl.util.SwingUtils;
 import org.jackhuang.hmcl.java.JavaRuntime;
 import org.jackhuang.hmcl.util.io.FileUtils;
 import org.jackhuang.hmcl.util.io.JarUtils;
+import org.jackhuang.hmcl.ui.mfmc.MfmcUiMode;
 import org.jackhuang.hmcl.util.io.TLSSecurity;
 import org.jackhuang.hmcl.util.platform.OperatingSystem;
 
@@ -125,7 +126,10 @@ public final class EntryPoint {
     private static void initIcon() {
         try {
             if (java.awt.Taskbar.isTaskbarSupported()) {
-                var image = java.awt.Toolkit.getDefaultToolkit().getImage(EntryPoint.class.getResource("/assets/img/icon-mac.png"));
+                String icon = MfmcUiMode.isEnabled()
+                        ? "/assets/img/icon-mfmc-mac.png"
+                        : "/assets/img/icon-mac.png";
+                var image = java.awt.Toolkit.getDefaultToolkit().getImage(EntryPoint.class.getResource(icon));
                 java.awt.Taskbar.getTaskbar().setIconImage(image);
             }
         } catch (Throwable e) {
