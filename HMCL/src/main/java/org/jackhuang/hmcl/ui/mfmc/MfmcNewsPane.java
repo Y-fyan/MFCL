@@ -17,7 +17,6 @@
  */
 package org.jackhuang.hmcl.ui.mfmc;
 
-import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Hyperlink;
@@ -44,7 +43,6 @@ public final class MfmcNewsPane extends VBox {
     /// @param showSettings action that opens the settings tab
     public MfmcNewsPane(Runnable showDownload, Runnable showSettings) {
         getStyleClass().addAll("mfmc-card", "mfmc-news-pane");
-        setPadding(new Insets(16));
         setSpacing(12);
         setFillWidth(true);
 
@@ -81,6 +79,12 @@ public final class MfmcNewsPane extends VBox {
         HBox links = createLinks(showDownload, showSettings);
 
         getChildren().setAll(header, hero, scroll, links);
+    }
+
+    /// Applies denser spacing when the window is resized down.
+    public void setCompact(boolean compact) {
+        setSpacing(compact ? 8 : 12);
+        newsList.setSpacing(compact ? 8 : 10);
     }
 
     /// Creates the hero card at the top of the news column.

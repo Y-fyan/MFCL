@@ -35,6 +35,7 @@ import javafx.scene.control.ContentDisplay;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.ColumnConstraints;
@@ -85,6 +86,21 @@ public final class MfmcLaunchPage extends StackPane {
     /// The two-column launch layout.
     private final GridPane layout = new GridPane();
 
+    /// The vertical scroll host for short windows.
+    private final ScrollPane launcherScroll = new ScrollPane();
+
+    /// The left account and launch card.
+    private VBox leftCard;
+
+    /// The right news column.
+    private MfmcNewsPane newsPane;
+
+    /// The installed-version selector.
+    private ListView<HMCLGameInstance> versionList;
+
+    /// The flexible gap between the account block and the launch button.
+    private Region launchSpacer;
+
     /// The in-scene overlay used for the account menu.
     private final Pane overlay = new Pane();
 
@@ -101,9 +117,11 @@ public final class MfmcLaunchPage extends StackPane {
     public MfmcLaunchPage(Runnable showDownload, Runnable showSettings) {
         getStyleClass().add("mfmc-launch-page");
 
-        layout.setHgap(16);
+        layout.setHgap(18);
         layout.setVgap(16);
         layout.setPadding(new Insets(0));
+        layout.setMinWidth(760);
+        layout.setMinHeight(400);
 
         ColumnConstraints leftColumn = new ColumnConstraints();
         leftColumn.setPercentWidth(40);
@@ -115,8 +133,8 @@ public final class MfmcLaunchPage extends StackPane {
 
         layout.getColumnConstraints().addAll(leftColumn, rightColumn);
 
-        VBox leftCard = createLeftCard(showDownload);
-        MfmcNewsPane newsPane = new MfmcNewsPane(showDownload, showSettings);
+        leftCard = createLeftCard(showDownload);
+        newsPane = new MfmcNewsPane(showDownload, showSettings);
 
         GridPane.setHgrow(leftCard, Priority.ALWAYS);
         GridPane.setVgrow(leftCard, Priority.ALWAYS);
@@ -126,6 +144,14 @@ public final class MfmcLaunchPage extends StackPane {
         layout.add(leftCard, 0, 0);
         layout.add(newsPane, 1, 0);
 
+        launcherScroll.setContent(layout);
+        launcherScroll.setFitToWidth(true);
+        launcherScroll.setFitToHeight(true);
+        launcherScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        launcherScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        launcherScroll.setMinSize(0, 0);
+        launcherScroll.getStyleClass().add("mfmc-launch-scroll");
+
         overlay.setPickOnBounds(false);
         overlay.setVisible(false);
         overlay.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
@@ -134,14 +160,48 @@ public final class MfmcLaunchPage extends StackPane {
         menuBackdrop.prefHeightProperty().bind(overlay.heightProperty());
         menuBackdrop.setOnMousePressed(event -> hideAccountMenu());
 
-        getChildren().setAll(layout, overlay);
+        getChildren().setAll(launcherScroll, overlay);
+
+        widthProperty().addListener((observable, oldValue, newValue) -> updateResponsiveLayout());
+        heightProperty().addListener((observable, oldValue, newValue) -> updateResponsiveLayout());
+        launcherScroll.vvalueProperty().addListener((observable, oldValue, newValue) -> hideAccountMenu());
+        launcherScroll.hvalueProperty().addListener((observable, oldValue, newValue) -> hideAccountMenu());
+        updateResponsiveLayout();
+    }
+
+    /// Applies compact spacing when the launch page is resized down.
+    private void updateResponsiveLayout() {
+        boolean compact = getWidth() < 940 || getHeight() < 580;
+        layout.setHgap(compact ? 12 : 18);
+        leftCard.setSpacing(compact ? 6 : 10);
+        newsPane.setCompact(compact);
+
+        if (launchSpacer != null) {
+            if (compact) {
+                VBox.setVgrow(launchSpacer, Priority.NEVER);
+                launchSpacer.setMinHeight(4);
+                launchSpacer.setPrefHeight(4);
+                launchSpacer.setMaxHeight(4);
+            } else {
+                VBox.setVgrow(launchSpacer, Priority.ALWAYS);
+                launchSpacer.setMinHeight(16);
+                launchSpacer.setPrefHeight(Region.USE_COMPUTED_SIZE);
+                launchSpacer.setMaxHeight(Double.MAX_VALUE);
+            }
+        }
+
+        if (versionList != null) {
+            versionList.setPrefHeight(compact ? 100 : 110);
+            VBox.setVgrow(versionList, compact ? Priority.ALWAYS : Priority.NEVER);
+            versionList.setMaxHeight(compact ? Double.MAX_VALUE : 140);
+        }
+        hideAccountMenu();
     }
 
     /// Builds the left column.
     private VBox createLeftCard(Runnable showDownload) {
         VBox card = new VBox(10);
         card.getStyleClass().add("mfmc-card");
-        card.setPadding(new Insets(16));
         card.setMinWidth(0);
 
         Canvas avatar = new Canvas(60, 60);
@@ -188,8 +248,8 @@ public final class MfmcLaunchPage extends StackPane {
             }
         });
 
-        Region spacer = new Region();
-        VBox.setVgrow(spacer, Priority.ALWAYS);
+        launchSpacer = new Region();
+        VBox.setVgrow(launchSpacer, Priority.ALWAYS);
 
         Button launchButton = createLaunchButton(showDownload);
         HBox launchRow = new HBox(launchButton);
@@ -209,7 +269,7 @@ public final class MfmcLaunchPage extends StackPane {
         versionHeader.setAlignment(Pos.CENTER_LEFT);
 
         ObservableList<HMCLGameInstance> versions = FXCollections.observableArrayList();
-        ListView<HMCLGameInstance> versionList = createVersionList(versions);
+        versionList = createVersionList(versions);
 
         FXUtils.onChangeAndOperate(repositorySnapshot, snapshot -> refreshVersions(versions, versionList));
         FXUtils.onChangeAndOperate(GameDirectoryManager.selectedInstanceProperty(), instance -> {
@@ -218,7 +278,7 @@ public final class MfmcLaunchPage extends StackPane {
             }
         });
 
-        card.getChildren().setAll(accountBox, spacer, launchRow, versionHeader, versionList);
+        card.getChildren().setAll(accountBox, launchSpacer, launchRow, versionHeader, versionList);
         return card;
     }
 

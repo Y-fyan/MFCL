@@ -19,7 +19,6 @@ package org.jackhuang.hmcl.ui.mfmc;
 
 import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.beans.property.ReadOnlyObjectWrapper;
-import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.ContentDisplay;
@@ -109,7 +108,6 @@ public final class MfmcRootPage extends StackPane implements DecoratorPage {
 
         HBox topBar = createTopBar();
         content.getStyleClass().add("mfmc-content");
-        content.setPadding(new Insets(16, 20, 20, 20));
         VBox.setVgrow(content, Priority.ALWAYS);
 
         VBox root = new VBox(topBar, content);
@@ -117,10 +115,26 @@ public final class MfmcRootPage extends StackPane implements DecoratorPage {
 
         FXUtils.applyDragListener(this, ModpackHelper::isFileModpackByExtension, this::installDroppedModpacks);
 
+        widthProperty().addListener((observable, oldValue, newValue) -> updateCompactMode());
+        heightProperty().addListener((observable, oldValue, newValue) -> updateCompactMode());
+        updateCompactMode();
+
         switch (System.getProperty("mfmc.ui.tab", "launch")) {
             case "download" -> showDownloadTab();
             case "settings" -> showSettingsTab();
             default -> selectTab(launchTab);
+        }
+    }
+
+    /// Switches the shell to a denser layout when the window is resized down.
+    private void updateCompactMode() {
+        boolean compact = getWidth() < 940 || getHeight() < 580;
+        if (compact) {
+            if (!getStyleClass().contains("mfmc-compact")) {
+                getStyleClass().add("mfmc-compact");
+            }
+        } else {
+            getStyleClass().remove("mfmc-compact");
         }
     }
 

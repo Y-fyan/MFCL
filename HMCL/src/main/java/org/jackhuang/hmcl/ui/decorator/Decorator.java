@@ -75,6 +75,7 @@ import org.jackhuang.hmcl.ui.animation.Motion;
 import org.jackhuang.hmcl.ui.animation.TransitionPane;
 import org.jackhuang.hmcl.ui.construct.JFXDialogPane;
 import org.jackhuang.hmcl.ui.construct.Navigator;
+import org.jackhuang.hmcl.ui.mfmc.MfmcUiMode;
 import org.jackhuang.hmcl.ui.wizard.Navigation;
 import org.jackhuang.hmcl.ui.wizard.Refreshable;
 import org.jackhuang.hmcl.ui.wizard.WizardProvider;
@@ -100,6 +101,12 @@ public final class Decorator {
 
     /// The minimum height, in pixels, including the 450-pixel background and 40-pixel title bar.
     private static final double MIN_CONTENT_HEIGHT = 450.0 + 40.0;
+
+    /// The comfortable initial width for the MFMC shell.
+    private static final double MFMC_DEFAULT_WIDTH = 1040.0;
+
+    /// The comfortable initial height for the MFMC shell.
+    private static final double MFMC_DEFAULT_HEIGHT = 640.0;
 
     /// The minimum visible overlap, in pixels, used to accept a persisted window position.
     private static final double MIN_VISIBLE_WINDOW_AREA = 20.0;
@@ -702,8 +709,18 @@ public final class Decorator {
     ///
     /// @return the initial content bounds in JavaFX screen coordinates
     private Rectangle2D initialContentBounds() {
-        double initialContentWidth = Math.max(MIN_CONTENT_WIDTH, SettingsManager.state().getWidth());
-        double initialContentHeight = Math.max(MIN_CONTENT_HEIGHT, SettingsManager.state().getHeight());
+        double savedWidth = SettingsManager.state().getWidth();
+        double savedHeight = SettingsManager.state().getHeight();
+
+        // Migrate the classic 800x490 default to a roomier MFMC window while
+        // still respecting explicitly resized windows.
+        if (MfmcUiMode.isEnabled() && savedWidth <= MIN_CONTENT_WIDTH && savedHeight <= MIN_CONTENT_HEIGHT) {
+            savedWidth = MFMC_DEFAULT_WIDTH;
+            savedHeight = MFMC_DEFAULT_HEIGHT;
+        }
+
+        double initialContentWidth = Math.max(MIN_CONTENT_WIDTH, savedWidth);
+        double initialContentHeight = Math.max(MIN_CONTENT_HEIGHT, savedHeight);
         double initialContentX = SettingsManager.state().getX() * PRIMARY_SCREEN_BOUNDS.getWidth();
         double initialContentY = SettingsManager.state().getY() * PRIMARY_SCREEN_BOUNDS.getHeight();
 

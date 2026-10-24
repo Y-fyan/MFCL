@@ -133,7 +133,7 @@
     -fx-background-radius: 999;
     -fx-padding: 8 14 8 14;
     -fx-text-fill: -mfmc-text-muted;
-    -fx-font-size: 13px;
+    -fx-font-size: 14px;
     -fx-cursor: hand;
 }
 
@@ -169,6 +169,7 @@
 
 .mfmc-content {
     -fx-background-color: -mfmc-bg;
+    -fx-padding: 16 20 20 20;
 }
 
 .mfmc-card {
@@ -176,14 +177,36 @@
     -fx-background-radius: 16;
     -fx-border-color: -mfmc-border;
     -fx-border-radius: 16;
-    -fx-padding: 16;
+    -fx-padding: 18;
     -fx-effect: dropshadow(gaussian, -mfmc-shadow, 16, 0.1, 0, 4);
 }
 
 .mfmc-section-title {
-    -fx-font-size: 13px;
+    -fx-font-size: 14px;
     -fx-font-weight: bold;
     -fx-text-fill: -mfmc-text;
+}
+
+/* Launch page scroll host */
+
+.mfmc-launch-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-padding: 0;
+}
+
+.mfmc-launch-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.mfmc-launch-scroll .scroll-bar:vertical {
+    -fx-pref-width: 8;
+    -fx-background-color: transparent;
+}
+
+.mfmc-launch-scroll .scroll-bar:vertical .thumb {
+    -fx-background-color: #D5DCE8;
+    -fx-background-radius: 999;
 }
 
 /* Account block */
@@ -210,13 +233,13 @@
 }
 
 .mfmc-account-name {
-    -fx-font-size: 14px;
+    -fx-font-size: 15px;
     -fx-font-weight: bold;
     -fx-text-fill: -mfmc-text;
 }
 
 .mfmc-account-type {
-    -fx-font-size: 10px;
+    -fx-font-size: 11px;
     -fx-text-fill: -mfmc-text-muted;
 }
 
@@ -313,7 +336,7 @@
 }
 
 .mfmc-launch-text {
-    -fx-font-size: 13px;
+    -fx-font-size: 14px;
     -fx-font-weight: bold;
     -fx-text-fill: #2B641B;
 }
@@ -323,7 +346,7 @@
 .mfmc-link-button {
     -fx-background-color: transparent;
     -fx-padding: 2 4 2 4;
-    -fx-font-size: 10px;
+    -fx-font-size: 11px;
     -fx-text-fill: -mfmc-primary;
     -fx-cursor: hand;
 }
@@ -355,18 +378,18 @@
 }
 
 .mfmc-version-title {
-    -fx-font-size: 12px;
+    -fx-font-size: 13px;
     -fx-font-weight: bold;
     -fx-text-fill: -mfmc-text;
 }
 
 .mfmc-version-subtitle {
-    -fx-font-size: 10px;
+    -fx-font-size: 11px;
     -fx-text-fill: -mfmc-text-muted;
 }
 
 .mfmc-empty-hint {
-    -fx-font-size: 11px;
+    -fx-font-size: 12px;
     -fx-text-fill: -mfmc-text-faint;
 }
 
@@ -399,25 +422,25 @@
 .mfmc-hero {
     -fx-background-color: linear-gradient(to bottom right, #E8F0FF, #EEF9EA);
     -fx-background-radius: 12;
-    -fx-padding: 14;
+    -fx-padding: 16;
 }
 
 .mfmc-hero-title {
-    -fx-font-size: 15px;
+    -fx-font-size: 16px;
     -fx-font-weight: bold;
     -fx-text-fill: #173A1C;
 }
 
 .mfmc-hero-text {
-    -fx-font-size: 11px;
+    -fx-font-size: 12px;
     -fx-text-fill: #4B6352;
 }
 
 .mfmc-primary-button {
     -fx-background-color: -mfmc-primary;
     -fx-background-radius: 999;
-    -fx-padding: 6 12 6 12;
-    -fx-font-size: 11px;
+    -fx-padding: 7 14 7 14;
+    -fx-font-size: 12px;
     -fx-font-weight: bold;
     -fx-text-fill: #FFFFFF;
     -fx-cursor: hand;
@@ -432,36 +455,36 @@
     -fx-background-radius: 10;
     -fx-border-color: -mfmc-border;
     -fx-border-radius: 10;
-    -fx-padding: 10;
+    -fx-padding: 12;
 }
 
 .mfmc-news-tag {
     -fx-background-color: -mfmc-primary-soft;
     -fx-background-radius: 999;
     -fx-padding: 1 7 1 7;
-    -fx-font-size: 9px;
+    -fx-font-size: 10px;
     -fx-font-weight: bold;
     -fx-text-fill: #315BDB;
 }
 
 .mfmc-news-title {
-    -fx-font-size: 12px;
+    -fx-font-size: 13px;
     -fx-font-weight: bold;
     -fx-text-fill: -mfmc-text;
 }
 
 .mfmc-news-summary {
-    -fx-font-size: 10px;
+    -fx-font-size: 11px;
     -fx-text-fill: -mfmc-text-muted;
 }
 
 .mfmc-news-date {
-    -fx-font-size: 9px;
+    -fx-font-size: 10px;
     -fx-text-fill: -mfmc-text-faint;
 }
 
 .mfmc-link {
-    -fx-font-size: 10px;
+    -fx-font-size: 11px;
     -fx-text-fill: -mfmc-primary;
     -fx-border-color: transparent;
     -fx-padding: 0;
@@ -479,7 +502,7 @@
     -fx-background-radius: 999;
     -fx-padding: 6 12 6 12;
     -fx-text-fill: -mfmc-text-muted;
-    -fx-font-size: 11px;
+    -fx-font-size: 12px;
     -fx-cursor: hand;
 }
 
@@ -684,4 +707,84 @@
 
 .mfmc-root .advanced-list-box-content {
     -fx-background-color: transparent;
+}
+
+/* Compact window layout */
+
+.mfmc-compact .mfmc-topbar {
+    -fx-padding: 6 14 6 14;
+    -fx-min-height: 50;
+}
+
+.mfmc-compact .mfmc-brand {
+    -fx-font-size: 16px;
+}
+
+.mfmc-compact .mfmc-tab {
+    -fx-padding: 7 12 7 12;
+    -fx-font-size: 13px;
+}
+
+.mfmc-compact .mfmc-content {
+    -fx-padding: 12 14 14 14;
+}
+
+.mfmc-compact .mfmc-card {
+    -fx-padding: 12;
+}
+
+.mfmc-compact .mfmc-section-title {
+    -fx-font-size: 13px;
+}
+
+.mfmc-compact .mfmc-account-box {
+    -fx-padding: 6;
+}
+
+.mfmc-compact .mfmc-account-name {
+    -fx-font-size: 14px;
+}
+
+.mfmc-compact .mfmc-account-type {
+    -fx-font-size: 10px;
+}
+
+.mfmc-compact .mfmc-version-title {
+    -fx-font-size: 12px;
+}
+
+.mfmc-compact .mfmc-version-subtitle {
+    -fx-font-size: 10px;
+}
+
+.mfmc-compact .mfmc-news-card {
+    -fx-padding: 8;
+}
+
+.mfmc-compact .mfmc-news-title {
+    -fx-font-size: 12px;
+}
+
+.mfmc-compact .mfmc-news-summary {
+    -fx-font-size: 10px;
+}
+
+.mfmc-compact .mfmc-news-date {
+    -fx-font-size: 9px;
+}
+
+.mfmc-compact .mfmc-hero {
+    -fx-padding: 10;
+}
+
+.mfmc-compact .mfmc-hero-title {
+    -fx-font-size: 14px;
+}
+
+.mfmc-compact .mfmc-hero-text {
+    -fx-font-size: 11px;
+}
+
+.mfmc-compact .mfmc-link {
+    -fx-font-size: 10px;
 }
