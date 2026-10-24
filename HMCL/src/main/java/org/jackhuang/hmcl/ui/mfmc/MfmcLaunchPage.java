@@ -17,14 +17,17 @@
  */
 package org.jackhuang.hmcl.ui.mfmc;
 
-import com.jfoenix.controls.JFXPopup;
+import javafx.animation.Interpolator;
+import javafx.animation.KeyFrame;
+import javafx.animation.KeyValue;
+import javafx.animation.Timeline;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
-import javafx.scene.Node;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.control.Button;
 import javafx.scene.control.ContentDisplay;
@@ -34,13 +37,15 @@ import javafx.scene.control.ListView;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
-import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.text.TextAlignment;
+import javafx.stage.Popup;
+import javafx.util.Duration;
 import org.jackhuang.hmcl.addon.mod.ModLoaderType;
 import org.jackhuang.hmcl.auth.Account;
 import org.jackhuang.hmcl.game.HMCLGameInstance;
@@ -282,7 +287,10 @@ public final class MfmcLaunchPage extends GridPane {
         header.getStyleClass().add("mfmc-account-menu-header");
         card.getChildren().add(header);
 
-        JFXPopup popup = new JFXPopup(card);
+        Popup popup = new Popup();
+        popup.setAutoHide(true);
+        popup.setHideOnEscape(true);
+
         Account selected = Accounts.getSelectedAccount();
 
         for (Account account : Accounts.getAccounts()) {
@@ -304,27 +312,39 @@ public final class MfmcLaunchPage extends GridPane {
                         () -> Controllers.navigate(Controllers.getAccountListPage()))
         );
 
-        popup.show(anchor, JFXPopup.PopupVPosition.BOTTOM, JFXPopup.PopupHPosition.LEFT, 0, 8);
-        isolatePopupChrome(popup);
-    }
+        StackPane surface = new StackPane(card);
+        surface.setPadding(new Insets(16));
+        surface.setStyle("-fx-background-color: #FFFFFF; -fx-background-radius: 18;");
+        popup.getContent().add(surface);
 
-    /// Removes the rectangular JFoenix popup chrome so the rounded MFMC card is
-    /// the only visible surface while the popup animation runs.
-    private static void isolatePopupChrome(JFXPopup popup) {
-        if (popup.getSkin() == null) {
+        Bounds bounds = anchor.localToScreen(anchor.getBoundsInLocal());
+        if (bounds == null) {
             return;
         }
-
-        Node root = popup.getSkin().getNode();
-        root.setEffect(null);
-
-        if (root instanceof Pane pane && !pane.getChildren().isEmpty()) {
-            pane.getChildren().get(0).setStyle("-fx-background-color: transparent; -fx-background-radius: 0;");
+        popup.show(anchor, bounds.getMinX() - 16, bounds.getMaxY() - 12);
+        if (popup.getScene() != null) {
+            popup.getScene().setFill(Color.WHITE);
         }
+
+        card.setOpacity(0);
+        card.setScaleX(0.96);
+        card.setScaleY(0.96);
+
+        Timeline animation = new Timeline(
+                new KeyFrame(Duration.ZERO,
+                        new KeyValue(card.opacityProperty(), 0, Interpolator.EASE_OUT),
+                        new KeyValue(card.scaleXProperty(), 0.96, Interpolator.EASE_OUT),
+                        new KeyValue(card.scaleYProperty(), 0.96, Interpolator.EASE_OUT)),
+                new KeyFrame(Duration.millis(120),
+                        new KeyValue(card.opacityProperty(), 1, Interpolator.EASE_OUT),
+                        new KeyValue(card.scaleXProperty(), 1, Interpolator.EASE_OUT),
+                        new KeyValue(card.scaleYProperty(), 1, Interpolator.EASE_OUT))
+        );
+        animation.play();
     }
 
     /// Creates one account row in the account menu.
-    private HBox createAccountMenuRow(Account account, boolean selected, JFXPopup popup) {
+    private HBox createAccountMenuRow(Account account, boolean selected, Popup popup) {
         Label name = new Label(StringUtils.isBlank(account.getProfileName())
                 ? account.getProfileID().toString()
                 : account.getProfileName());
@@ -356,7 +376,7 @@ public final class MfmcLaunchPage extends GridPane {
     }
 
     /// Creates one action row in the account menu.
-    private HBox createAccountMenuAction(String text, SVG icon, boolean accent, JFXPopup popup, Runnable action) {
+    private HBox createAccountMenuAction(String text, SVG icon, boolean accent, Popup popup, Runnable action) {
         SVGContainer iconNode = icon.createIcon(16);
         iconNode.getStyleClass().add("mfmc-account-menu-icon");
 
