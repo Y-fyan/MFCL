@@ -192,13 +192,13 @@ public final class MfmcLaunchPage extends GridPane {
         return card;
     }
 
-    /// Creates the 5:3 launch button.
+    /// Creates the flattened launch button.
     private Button createLaunchButton(Runnable showDownload) {
         Button button = new Button();
         button.getStyleClass().add("mfmc-launch-button");
-        button.setPrefSize(160, 96);
-        button.setMinSize(160, 96);
-        button.setMaxSize(160, 96);
+        button.setPrefSize(160, 80);
+        button.setMinSize(160, 80);
+        button.setMaxSize(160, 80);
         button.setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
         button.setFocusTraversable(true);
 
