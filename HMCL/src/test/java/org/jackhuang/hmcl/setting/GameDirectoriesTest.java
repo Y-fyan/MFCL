@@ -26,6 +26,7 @@ import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.collections.ObservableList;
 import org.jackhuang.hmcl.Metadata;
+import org.jackhuang.hmcl.MfclPaths;
 import org.jackhuang.hmcl.game.GameInstanceID;
 import org.jackhuang.hmcl.game.GameInstanceManifest;
 import org.jackhuang.hmcl.game.GameRepositoryDraft;
@@ -360,7 +361,8 @@ public final class GameDirectoriesTest {
         try (GameDirectoryEnvironment ignored = new GameDirectoryEnvironment(localDirectories, userDirectories)) {
             GameDirectoryManager.init();
 
-            GameDirectory localGameDirectory = assertSingleDefaultGameDirectory(localDirectories, PortablePath.of(".minecraft"));
+            GameDirectory localGameDirectory = assertSingleDefaultGameDirectory(
+                    localDirectories, PortablePath.fromPath(MfclPaths.MINECRAFT.resolve("workspace")));
             GameDirectory userGameDirectory = assertSingleDefaultGameDirectory(
                     userDirectories,
                     PortablePath.fromPath(Metadata.MINECRAFT_DIRECTORY));
@@ -385,7 +387,8 @@ public final class GameDirectoriesTest {
         try (GameDirectoryEnvironment ignored = new GameDirectoryEnvironment(localDirectories, userDirectories)) {
             GameDirectoryManager.init();
 
-            GameDirectory localGameDirectory = assertSingleDefaultGameDirectory(localDirectories, PortablePath.of(".minecraft"));
+            GameDirectory localGameDirectory = assertSingleDefaultGameDirectory(
+                    localDirectories, PortablePath.fromPath(MfclPaths.MINECRAFT.resolve("workspace")));
             GameDirectory userGameDirectory = assertSingleDefaultGameDirectory(
                     userDirectories,
                     PortablePath.fromPath(Metadata.MINECRAFT_DIRECTORY));
