@@ -32,7 +32,11 @@ val isOfficial = JenkinsUtils.IS_ON_CI || GitHubActionUtils.IS_ON_OFFICIAL_REPO
 val versionType = System.getenv("VERSION_TYPE") ?: if (isOfficial) "nightly" else "unofficial"
 val versionRoot = System.getenv("VERSION_ROOT") ?: projectConfig.getProperty("versionRoot") ?: "3"
 
-val microsoftAuthId = System.getenv("MICROSOFT_AUTH_ID") ?: ""
+// MFMC internal testing fallback: bake the upstream HMCL OAuth client ID when
+// no MFMC-owned Azure application ID is supplied. Replace this value with our
+// own client ID before any public release.
+val mfmcTemporaryMicrosoftAuthId = "6a3728d6-27a3-4180-99bb-479895b8f88e"
+val microsoftAuthId = System.getenv("MICROSOFT_AUTH_ID") ?: mfmcTemporaryMicrosoftAuthId
 val curseForgeApiKey = System.getenv("CURSEFORGE_API_KEY") ?: ""
 
 val launcherExe = System.getenv("HMCL_LAUNCHER_EXE") ?: ""
