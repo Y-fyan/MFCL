@@ -57,6 +57,14 @@ java -Dhmcl.ui=mfmc -jar HMCL/build/libs/HMCL-*.jar
 -Dmfmc.game.sdl.video.driver=wayland
 ```
 
+在 Windows 混合显卡笔记本上，MFMC 会自动为当前 Java 进程写入“高性能 GPU”图形首选项，重启启动器后生效。如需关闭该行为：
+
+```bash
+-Dmfmc.gpu.preference=off
+```
+
+Windows 的 MFMC 模式默认不绘制整窗投影，可通过 `-Dhmcl.window.shadow=true` 恢复。
+
 ## 说明
 
 当前仓库是 MFMC 内部研发与测试版本，不是 HMCL 官方发行版。MFMC 对启动器界面、数据目录和启动流程做了定制；如果遇到问题，请优先在 MFMC 仓库反馈，不要将问题归到 HMCL 官方项目。

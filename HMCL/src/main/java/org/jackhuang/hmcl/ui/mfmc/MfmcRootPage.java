@@ -127,6 +127,11 @@ public final class MfmcRootPage extends StackPane implements DecoratorPage {
             case "settings" -> showSettingsTab();
             default -> selectTab(launchTab);
         }
+
+        if (WindowsGpuPreference.consumeChanged()) {
+            javafx.application.Platform.runLater(() ->
+                    Controllers.showToast("已为 MFMC 启用高性能 GPU，重启启动器后生效"));
+        }
     }
 
     /// Switches the shell to a denser layout when the window is resized down.

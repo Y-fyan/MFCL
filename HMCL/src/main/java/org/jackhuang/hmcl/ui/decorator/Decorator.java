@@ -322,9 +322,23 @@ public final class Decorator {
     /// @param edgeToEdge whether the attached stage is maximized under [WindowState]'s policy or full-screen
     private void updateWindowDecoration(boolean edgeToEdge) {
         boolean customDecoration = !nativeDecorationEnabled && !edgeToEdge;
-        root.setPadding(customDecoration ? SHADOW_INSETS : Insets.EMPTY);
-        shadowContainer.setEffect(customDecoration ? windowShadow : null);
-        mainWindowPane.setWindowCornersRounded(customDecoration);
+        boolean useShadow = customDecoration && shouldUseWindowShadow();
+        root.setPadding(useShadow ? SHADOW_INSETS : Insets.EMPTY);
+        shadowContainer.setEffect(useShadow ? windowShadow : null);
+        mainWindowPane.setWindowCornersRounded(useShadow);
+    }
+
+    /// Returns whether the custom window drop shadow should be rendered.
+    ///
+    /// The shadow is a full-window blur and is expensive on integrated GPUs.
+    /// MFMC on Windows defaults to a flat window; classic HMCL and other
+    /// platforms keep the existing shadow behavior.
+    private static boolean shouldUseWindowShadow() {
+        String override = System.getProperty("hmcl.window.shadow");
+        if (override != null) {
+            return Boolean.parseBoolean(override);
+        }
+        return !(MfmcUiMode.isEnabled() && OperatingSystem.CURRENT_OS == OperatingSystem.WINDOWS);
     }
 
     /// Returns the pane on which application dialogs are stacked.

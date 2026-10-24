@@ -42,6 +42,7 @@ import org.jackhuang.hmcl.ui.Controllers;
 import org.jackhuang.hmcl.ui.FXUtils;
 import org.jackhuang.hmcl.ui.animation.AnimationUtils;
 import org.jackhuang.hmcl.ui.mfmc.MfmcUiMode;
+import org.jackhuang.hmcl.ui.mfmc.WindowsGpuPreference;
 import org.jackhuang.hmcl.upgrade.UpdateChecker;
 import org.jackhuang.hmcl.upgrade.UpdateHandler;
 import org.jackhuang.hmcl.util.*;
@@ -375,6 +376,7 @@ public final class Launcher extends Application {
                 EntryPoint.exit(1);
             }
 
+            WindowsGpuPreference.ensureHighPerformance();
             setupJavaFXVMOptions();
             setupWindowsAppUserModelID();
 
