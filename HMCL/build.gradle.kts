@@ -165,6 +165,7 @@ val createPropertiesFile = tasks.register<WriteProperties>("createPropertiesFile
     encoding = "UTF-8"
 
     property("hmcl.version", project.version.toString())
+    property("hmcl.ui", System.getenv("HMCL_UI") ?: "")
     property("hmcl.add-opens", addOpens.joinToString(" "))
     System.getenv("GITHUB_SHA")?.let { property("hmcl.version.hash", it) }
     property("hmcl.version.type", versionType)
