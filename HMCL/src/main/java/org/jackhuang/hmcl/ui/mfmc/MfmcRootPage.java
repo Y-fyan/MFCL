@@ -85,6 +85,9 @@ public final class MfmcRootPage extends StackPane implements DecoratorPage {
     /// The settings tab.
     private final ToggleButton settingsTab;
 
+    /// Whether the compact shell class is currently applied.
+    private boolean compactMode;
+
     /// Creates the MFMC root page.
     public MfmcRootPage() {
         LOG.info("Initializing MFMC UI root");
@@ -129,10 +132,13 @@ public final class MfmcRootPage extends StackPane implements DecoratorPage {
     /// Switches the shell to a denser layout when the window is resized down.
     private void updateCompactMode() {
         boolean compact = getWidth() < 940 || getHeight() < 580;
+        if (compact == compactMode) {
+            return;
+        }
+        compactMode = compact;
+
         if (compact) {
-            if (!getStyleClass().contains("mfmc-compact")) {
-                getStyleClass().add("mfmc-compact");
-            }
+            getStyleClass().add("mfmc-compact");
         } else {
             getStyleClass().remove("mfmc-compact");
         }

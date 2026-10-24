@@ -35,7 +35,6 @@ import javafx.scene.control.ContentDisplay;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
-import javafx.scene.control.ScrollPane;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.ColumnConstraints;
@@ -89,9 +88,6 @@ public final class MfmcLaunchPage extends StackPane {
     /// The two-column launch layout.
     private final GridPane layout = new GridPane();
 
-    /// The vertical scroll host for short windows.
-    private final ScrollPane launcherScroll = new ScrollPane();
-
     /// The left account and launch card.
     private VBox leftCard;
 
@@ -112,6 +108,9 @@ public final class MfmcLaunchPage extends StackPane {
 
     /// The Escape handler installed while the account menu is open.
     private @Nullable EventHandler<KeyEvent> escapeHandler;
+
+    /// Whether the compact spacing is currently applied.
+    private boolean compactLayout;
 
     /// Creates the launch tab.
     ///
@@ -149,14 +148,6 @@ public final class MfmcLaunchPage extends StackPane {
         layout.add(leftCard, 0, 0);
         layout.add(newsPane, 1, 0);
 
-        launcherScroll.setContent(layout);
-        launcherScroll.setFitToWidth(true);
-        launcherScroll.setFitToHeight(true);
-        launcherScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        launcherScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        launcherScroll.setMinSize(0, 0);
-        launcherScroll.getStyleClass().add("mfmc-launch-scroll");
-
         overlay.setPickOnBounds(false);
         overlay.setVisible(false);
         overlay.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
@@ -165,18 +156,24 @@ public final class MfmcLaunchPage extends StackPane {
         menuBackdrop.prefHeightProperty().bind(overlay.heightProperty());
         menuBackdrop.setOnMousePressed(event -> hideAccountMenu());
 
-        getChildren().setAll(launcherScroll, overlay);
+        getChildren().setAll(layout, overlay);
 
         widthProperty().addListener((observable, oldValue, newValue) -> updateResponsiveLayout());
         heightProperty().addListener((observable, oldValue, newValue) -> updateResponsiveLayout());
-        launcherScroll.vvalueProperty().addListener((observable, oldValue, newValue) -> hideAccountMenu());
-        launcherScroll.hvalueProperty().addListener((observable, oldValue, newValue) -> hideAccountMenu());
         updateResponsiveLayout();
     }
 
     /// Applies compact spacing when the launch page is resized down.
     private void updateResponsiveLayout() {
         boolean compact = getWidth() < 940 || getHeight() < 580;
+        if (compact == compactLayout) {
+            if (overlay.isVisible()) {
+                hideAccountMenu();
+            }
+            return;
+        }
+        compactLayout = compact;
+
         layout.setHgap(compact ? 12 : 18);
         leftCard.setSpacing(compact ? 6 : 10);
         newsPane.setCompact(compact);
@@ -439,6 +436,10 @@ public final class MfmcLaunchPage extends StackPane {
 
     /// Hides the account menu and releases its Escape handler.
     private void hideAccountMenu() {
+        if (!overlay.isVisible() && escapeHandler == null) {
+            return;
+        }
+
         overlay.setVisible(false);
         overlay.getChildren().clear();
 
