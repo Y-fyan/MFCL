@@ -56,10 +56,14 @@ public final class WindowsGpuPreference {
         }
         initialized = true;
 
+        String preference = System.getProperty(
+                "mfmc.gpu.preference",
+                System.getenv("MFMC_GPU_PREFERENCE")
+        );
         if (OperatingSystem.CURRENT_OS != OperatingSystem.WINDOWS
                 || !MfmcUiMode.isEnabled()
                 || WinReg.INSTANCE == null
-                || !"high".equalsIgnoreCase(System.getProperty("mfmc.gpu.preference", "high"))) {
+                || preference != null && !"high".equalsIgnoreCase(preference)) {
             return false;
         }
 

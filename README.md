@@ -61,6 +61,8 @@ java -Dhmcl.ui=mfmc -jar HMCL/build/libs/HMCL-*.jar
 
 ```bash
 -Dmfmc.gpu.preference=off
+# 或
+MFMC_GPU_PREFERENCE=off
 ```
 
 Windows 的 MFMC 模式默认不绘制整窗投影，可通过 `-Dhmcl.window.shadow=true` 恢复。
