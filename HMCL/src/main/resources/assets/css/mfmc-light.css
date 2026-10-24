@@ -227,28 +227,34 @@
 /* Launch button */
 
 .mfmc-launch-button {
-    -fx-background-color: -mfmc-green;
-    -fx-background-radius: 20;
+    -fx-background-color: linear-gradient(to bottom right, #EAF7E4, #DDEBFF);
+    -fx-background-radius: 16;
+    -fx-border-color: #D6E4D0;
+    -fx-border-radius: 16;
+    -fx-border-width: 1;
     -fx-cursor: hand;
-    -fx-effect: dropshadow(gaussian, rgba(60, 133, 39, 0.25), 16, 0.15, 0, 6);
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.14), 16, 0.12, 5, 6);
 }
 
 .mfmc-launch-button:hover {
-    -fx-background-color: -mfmc-green-hover;
+    -fx-background-color: linear-gradient(to bottom right, #E1F2D8, #D2E3FF);
+    -fx-border-color: #C9DCC2;
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.18), 18, 0.14, 5, 7);
 }
 
 .mfmc-launch-button:pressed {
-    -fx-background-color: -mfmc-green-pressed;
+    -fx-background-color: linear-gradient(to bottom right, #D5EBCB, #C7DBFF);
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.10), 10, 0.1, 3, 4);
 }
 
 .mfmc-launch-icon .svg {
-    -fx-fill: #FFFFFF;
+    -fx-fill: #2B641B;
 }
 
 .mfmc-launch-text {
     -fx-font-size: 13px;
     -fx-font-weight: bold;
-    -fx-text-fill: #FFFFFF;
+    -fx-text-fill: #2B641B;
 }
 
 /* Version selector */
