@@ -100,7 +100,7 @@ public final class MfmcRootPage extends StackPane implements DecoratorPage {
 
         state.set(new State(null, createTitleNode(), false, false, true));
 
-        launchPage = new MfmcLaunchPage(this::showDownloadTab, this::showSettingsTab);
+        launchPage = new MfmcLaunchPage(this::showDownloadTab, this::showSettingsTab, this::showAccountsPage);
 
         launchTab = createTab("启动游戏", SVG.ROCKET_LAUNCH);
         downloadTab = createTab("下载", SVG.DOWNLOAD);
@@ -148,11 +148,8 @@ public final class MfmcRootPage extends StackPane implements DecoratorPage {
         tab.getStyleClass().add("mfmc-tab");
         tab.setToggleGroup(tabGroup);
         tab.setOnAction(event -> {
-            if (tab.isSelected()) {
-                selectTab(tab);
-            } else {
-                tab.setSelected(true);
-            }
+            tab.setSelected(true);
+            selectTab(tab);
         });
         return tab;
     }
@@ -229,6 +226,12 @@ public final class MfmcRootPage extends StackPane implements DecoratorPage {
     public void showSettingsTab() {
         settingsTab.setSelected(true);
         selectTab(settingsTab);
+    }
+
+    /// Shows the MFMC-owned account management page.
+    public void showAccountsPage() {
+        launchTab.setSelected(true);
+        content.getChildren().setAll(new MfmcAccountPage(this::showLaunchTab));
     }
 
     /// Opens the MFMC-owned install page for the selected Minecraft version.

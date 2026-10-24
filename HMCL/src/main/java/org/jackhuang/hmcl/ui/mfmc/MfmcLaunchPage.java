@@ -83,6 +83,9 @@ public final class MfmcLaunchPage extends StackPane {
             BindingMapping.of(GameDirectoryManager.selectedRepositoryProperty())
                     .flatMap(HMCLGameRepository::snapshotProperty);
 
+    /// Opens the MFMC account management page.
+    private final Runnable showAccounts;
+
     /// The two-column launch layout.
     private final GridPane layout = new GridPane();
 
@@ -114,7 +117,9 @@ public final class MfmcLaunchPage extends StackPane {
     ///
     /// @param showDownload action that opens the download tab
     /// @param showSettings action that opens the settings tab
-    public MfmcLaunchPage(Runnable showDownload, Runnable showSettings) {
+    /// @param showAccounts action that opens the account management page
+    public MfmcLaunchPage(Runnable showDownload, Runnable showSettings, Runnable showAccounts) {
+        this.showAccounts = showAccounts;
         getStyleClass().add("mfmc-launch-page");
 
         layout.setHgap(18);
@@ -392,8 +397,7 @@ public final class MfmcLaunchPage extends StackPane {
         card.getChildren().addAll(
                 createAccountMenuAction("添加账号", SVG.ADD_CIRCLE, true, closeAction,
                         () -> Controllers.dialog(new CreateAccountPane())),
-                createAccountMenuAction("管理账号", SVG.PERSON, false, closeAction,
-                        () -> Controllers.navigate(Controllers.getAccountListPage()))
+                createAccountMenuAction("管理账号", SVG.PERSON, false, closeAction, showAccounts)
         );
 
         Point2D anchorInScene = anchor.localToScene(0, 0);

@@ -709,6 +709,141 @@
     -fx-background-color: transparent;
 }
 
+/* Account management page */
+
+.mfmc-account-page {
+    -fx-background-color: transparent;
+}
+
+.mfmc-account-page-subtitle {
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmc-text-muted;
+}
+
+.mfmc-root .mfmc-account-add {
+    -fx-background-color: -mfmc-primary;
+    -fx-background-radius: 999;
+    -fx-padding: 7 14 7 14;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+    -fx-cursor: hand;
+}
+
+.mfmc-root .mfmc-account-add:hover {
+    -fx-background-color: -mfmc-primary-hover;
+}
+
+.mfmc-root .mfmc-account-add .svg {
+    -fx-fill: #FFFFFF;
+}
+
+.mfmc-account-list {
+    -fx-background-color: transparent;
+    -fx-control-inner-background: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.mfmc-account-list .virtual-flow,
+.mfmc-account-list .clipped-container,
+.mfmc-account-list .sheet {
+    -fx-background-color: transparent;
+}
+
+.mfmc-account-list .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 0 0 8 0;
+}
+
+.mfmc-account-list .list-cell:filled:selected {
+    -fx-background-color: transparent;
+}
+
+.mfmc-account-row {
+    -fx-background-color: -mfmc-surface-muted;
+    -fx-background-radius: 12;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 12;
+    -fx-padding: 10 12 10 12;
+}
+
+.mfmc-account-row:hover {
+    -fx-background-color: #F1F5FB;
+}
+
+.mfmc-account-row.selected {
+    -fx-background-color: -mfmc-primary-soft;
+    -fx-border-color: #C9D7FF;
+}
+
+.mfmc-account-page-avatar {
+    -fx-background-color: -mfmc-surface;
+    -fx-background-radius: 999;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 999;
+    -fx-min-width: 44;
+    -fx-min-height: 44;
+    -fx-pref-width: 44;
+    -fx-pref-height: 44;
+    -fx-max-width: 44;
+    -fx-max-height: 44;
+}
+
+.mfmc-account-page-name {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmc-account-page-type {
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmc-text-muted;
+}
+
+.mfmc-account-current {
+    -fx-background-color: #DDF4D5;
+    -fx-background-radius: 999;
+    -fx-padding: 2 8 2 8;
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #2B641B;
+}
+
+.mfmc-account-action {
+    -fx-background-color: transparent;
+    -fx-background-radius: 999;
+    -fx-padding: 6 8 6 8;
+    -fx-cursor: hand;
+}
+
+.mfmc-account-action:hover {
+    -fx-background-color: -mfmc-surface;
+}
+
+.mfmc-account-action .svg {
+    -fx-fill: -mfmc-text-muted;
+}
+
+.mfmc-account-action.danger:hover .svg {
+    -fx-fill: #BA1A1A;
+}
+
+.mfmc-account-empty {
+    -fx-font-size: 12px;
+    -fx-text-fill: -mfmc-text-faint;
+}
+
+.mfmc-account-list .scroll-bar:vertical {
+    -fx-pref-width: 8;
+    -fx-background-color: transparent;
+}
+
+.mfmc-account-list .scroll-bar:vertical .thumb {
+    -fx-background-color: #D5DCE8;
+    -fx-background-radius: 999;
+}
+
 /* Compact window layout */
 
 .mfmc-compact .mfmc-topbar {
@@ -786,5 +921,26 @@
 }
 
 .mfmc-compact .mfmc-link {
+    -fx-font-size: 10px;
+}
+
+.mfmc-compact .mfmc-account-page-subtitle {
+    -fx-font-size: 10px;
+}
+
+.mfmc-compact .mfmc-account-add {
+    -fx-padding: 6 12 6 12;
+    -fx-font-size: 11px;
+}
+
+.mfmc-compact .mfmc-account-row {
+    -fx-padding: 8 10 8 10;
+}
+
+.mfmc-compact .mfmc-account-page-name {
+    -fx-font-size: 13px;
+}
+
+.mfmc-compact .mfmc-account-page-type {
     -fx-font-size: 10px;
 }
