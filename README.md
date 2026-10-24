@@ -24,7 +24,7 @@
 - 支持将 `.zip` / `.mrpack` 整合包拖入窗口安装。
 - 下载页：游戏版本、模组加载器、模组、整合包、资源包、光影、世界。
 - 设置页：Java 管理、版本隔离、关于信息。
-- 经典 HMCL UI 仍然保留：默认启动为经典 UI，使用 `-Dhmcl.ui=mfmc` 进入 MFMC UI。
+- 经典 HMCL UI 仍然保留：发布产物默认进入 MFMC UI；经典 UI 可通过 `-Dhmcl.ui=classic` 或 `./run-internal.sh` 使用。
 - 数据默认隔离到 `~/.mfcl`，不读写原有的 `~/.hmcl`、`~/.local/share/hmcl` 或 `~/.minecraft`。
 
 ## 目录隔离
