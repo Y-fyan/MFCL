@@ -35,6 +35,7 @@ import org.jackhuang.hmcl.setting.GameSettings;
 import org.jackhuang.hmcl.ui.FXUtils;
 import org.jackhuang.hmcl.ui.game.GameSettingsPage;
 import org.jackhuang.hmcl.ui.main.JavaManagementPage;
+import org.jackhuang.hmcl.util.Lazy;
 import org.jetbrains.annotations.NotNullByDefault;
 
 /// The MFMC settings tab.
@@ -52,12 +53,13 @@ public final class MfmcSettingsPage extends VBox {
         Label title = new Label("设置");
         title.getStyleClass().add("mfmc-section-title");
 
-        Node javaPage = new JavaManagementPage();
-
-        GameSettingsPage<GameSettings.Preset> gameSettingsPage =
-                new GameSettingsPage<>(GameSettings.Preset.class, null);
-        gameSettingsPage.loadInstance(HMCLGameInstance.Optional.empty(GameDirectoryManager.getSelectedRepository()));
-        Node gamePage = gameSettingsPage;
+        Lazy<Node> javaPage = new Lazy<>(JavaManagementPage::new);
+        Lazy<Node> gamePage = new Lazy<>(() -> {
+            GameSettingsPage<GameSettings.Preset> page =
+                    new GameSettingsPage<>(GameSettings.Preset.class, null);
+            page.loadInstance(HMCLGameInstance.Optional.empty(GameDirectoryManager.getSelectedRepository()));
+            return page;
+        });
 
         Node aboutPage = createAboutPane();
 
@@ -72,14 +74,14 @@ public final class MfmcSettingsPage extends VBox {
 
         javaTab.setOnAction(event -> {
             if (javaTab.isSelected()) {
-                content.getChildren().setAll(javaPage);
+                content.getChildren().setAll(javaPage.get());
             } else {
                 javaTab.setSelected(true);
             }
         });
         gameTab.setOnAction(event -> {
             if (gameTab.isSelected()) {
-                content.getChildren().setAll(gamePage);
+                content.getChildren().setAll(gamePage.get());
             } else {
                 gameTab.setSelected(true);
             }
@@ -98,7 +100,7 @@ public final class MfmcSettingsPage extends VBox {
         switch (System.getProperty("mfmc.ui.settings.tab", "java")) {
             case "game" -> {
                 gameTab.setSelected(true);
-                content.getChildren().setAll(gamePage);
+                content.getChildren().setAll(gamePage.get());
             }
             case "about" -> {
                 aboutTab.setSelected(true);
@@ -106,7 +108,7 @@ public final class MfmcSettingsPage extends VBox {
             }
             default -> {
                 javaTab.setSelected(true);
-                content.getChildren().setAll(javaPage);
+                content.getChildren().setAll(javaPage.get());
             }
         }
 

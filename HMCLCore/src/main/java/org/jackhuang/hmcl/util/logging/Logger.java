@@ -72,6 +72,30 @@ public final class Logger {
 
     public static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault());
 
+    /// The minimum level written to the log queue.
+    ///
+    /// TRACE/DEBUG used to be emitted unconditionally, which made every task
+    /// creation pay for caller lookup and file I/O. Keep INFO by default and
+    /// allow diagnostics with `-Dhmcl.log.level=TRACE`.
+    private static final Level MIN_LEVEL = resolveMinLevel();
+
+    private static Level resolveMinLevel() {
+        String value = System.getProperty("hmcl.log.level", System.getenv("HMCL_LOG_LEVEL"));
+        if (value == null || value.isBlank()) {
+            return Level.INFO;
+        }
+
+        try {
+            return Level.valueOf(value.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return Level.INFO;
+        }
+    }
+
+    private static boolean isLoggable(Level level) {
+        return level.getSeverity() >= MIN_LEVEL.getSeverity();
+    }
+
     private final BlockingQueue<LogEvent> queue = new LinkedBlockingQueue<>();
     private final StringBuilder builder = new StringBuilder(512);
 
@@ -323,54 +347,93 @@ public final class Logger {
     }
 
     private void log(Level level, String caller, String msg, Throwable exception) {
+        if (!isLoggable(level)) {
+            return;
+        }
         queue.add(new LogEvent.DoLog(System.currentTimeMillis(), caller, level, msg, exception));
     }
 
     public void log(Level level, String msg) {
+        if (!isLoggable(level)) {
+            return;
+        }
         log(level, CallerFinder.getCaller(), msg, null);
     }
 
     public void log(Level level, String msg, Throwable exception) {
+        if (!isLoggable(level)) {
+            return;
+        }
         log(level, CallerFinder.getCaller(), msg, exception);
     }
 
     public void error(String msg) {
+        if (!isLoggable(Level.ERROR)) {
+            return;
+        }
         log(Level.ERROR, CallerFinder.getCaller(), msg, null);
     }
 
     public void error(String msg, Throwable exception) {
+        if (!isLoggable(Level.ERROR)) {
+            return;
+        }
         log(Level.ERROR, CallerFinder.getCaller(), msg, exception);
     }
 
     public void warning(String msg) {
+        if (!isLoggable(Level.WARNING)) {
+            return;
+        }
         log(Level.WARNING, CallerFinder.getCaller(), msg, null);
     }
 
     public void warning(String msg, Throwable exception) {
+        if (!isLoggable(Level.WARNING)) {
+            return;
+        }
         log(Level.WARNING, CallerFinder.getCaller(), msg, exception);
     }
 
     public void info(String msg) {
+        if (!isLoggable(Level.INFO)) {
+            return;
+        }
         log(Level.INFO, CallerFinder.getCaller(), msg, null);
     }
 
     public void info(String msg, Throwable exception) {
+        if (!isLoggable(Level.INFO)) {
+            return;
+        }
         log(Level.INFO, CallerFinder.getCaller(), msg, exception);
     }
 
     public void debug(String msg) {
+        if (!isLoggable(Level.DEBUG)) {
+            return;
+        }
         log(Level.DEBUG, CallerFinder.getCaller(), msg, null);
     }
 
     public void debug(String msg, Throwable exception) {
+        if (!isLoggable(Level.DEBUG)) {
+            return;
+        }
         log(Level.DEBUG, CallerFinder.getCaller(), msg, exception);
     }
 
     public void trace(String msg) {
+        if (!isLoggable(Level.TRACE)) {
+            return;
+        }
         log(Level.TRACE, CallerFinder.getCaller(), msg, null);
     }
 
     public void trace(String msg, Throwable exception) {
+        if (!isLoggable(Level.TRACE)) {
+            return;
+        }
         log(Level.TRACE, CallerFinder.getCaller(), msg, exception);
     }
 
