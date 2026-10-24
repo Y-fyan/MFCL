@@ -922,3 +922,141 @@
 .mfmc-compact .mfmc-account-page-type {
     -fx-font-size: 10px;
 }
+
+/* Visual polish: softer depth, clearer interaction feedback (CSS-only, no layout changes) */
+
+.mfmc-topbar {
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.05), 8, 0, 0, 1);
+}
+
+.mfmc-tab:pressed {
+    -fx-background-color: -mfmc-primary-soft;
+}
+
+.mfmc-tab:focused {
+    -fx-border-color: #C9D7FF;
+    -fx-border-radius: 999;
+    -fx-border-width: 1;
+}
+
+.mfmc-card {
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.07), 14, 0.0, 0, 3);
+}
+
+.mfmc-card:hover {
+    -fx-border-color: #D5DFEE;
+}
+
+.mfmc-account-box,
+.mfmc-account-row {
+    -fx-cursor: hand;
+}
+
+.mfmc-account-box:pressed,
+.mfmc-account-row:pressed {
+    -fx-background-color: #E8EEF8;
+}
+
+.mfmc-account-menu-item {
+    -fx-cursor: hand;
+}
+
+.mfmc-account-menu-item:pressed {
+    -fx-background-color: #E8EEF8;
+}
+
+.mfmc-root .mfmc-account-add:pressed {
+    -fx-background-color: #335FD8;
+}
+
+.mfmc-account-action:pressed {
+    -fx-background-color: -mfmc-primary-soft;
+}
+
+.mfmc-link-button:pressed {
+    -fx-text-fill: #2F58D0;
+}
+
+.mfmc-root .scroll-bar:vertical,
+.mfmc-root .scroll-bar:horizontal {
+    -fx-background-color: transparent;
+}
+
+.mfmc-root .scroll-bar .thumb {
+    -fx-background-color: #D5DCE8;
+    -fx-background-radius: 999;
+}
+
+.mfmc-root .scroll-bar .thumb:hover {
+    -fx-background-color: #B8C2D4;
+}
+
+.mfmc-root .scroll-bar .increment-button,
+.mfmc-root .scroll-bar .decrement-button {
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+}
+
+/* Light gradient theme: soft sky-to-mint tones */
+
+.mfmc-root,
+.mfmc-content {
+    -fx-background-color: linear-gradient(to bottom right, #F3F7FF 0%, #F6FAFF 55%, #F1FAF4 100%);
+}
+
+.mfmc-topbar {
+    -fx-background-color: linear-gradient(to right, #FFFFFF 0%, #F7FAFF 60%, #F2FAF5 100%);
+}
+
+.mfmc-tab:hover {
+    -fx-background-color: linear-gradient(to right, #F3F6FC, #EEF6F2);
+}
+
+.mfmc-tab:selected {
+    -fx-background-color: linear-gradient(to right, #E3EBFF, #E2F3EA);
+}
+
+.mfmc-card {
+    -fx-background-color: linear-gradient(to bottom, #FFFFFF 0%, #FAFCFF 100%);
+}
+
+.mfmc-account-box {
+    -fx-background-color: linear-gradient(to right, #F8FAFC, #F4F8FD);
+}
+
+.mfmc-account-box:hover,
+.mfmc-account-row:hover {
+    -fx-background-color: linear-gradient(to right, #EEF3FC, #EAF5F0);
+}
+
+.mfmc-account-row.selected {
+    -fx-background-color: linear-gradient(to right, #E5ECFF, #E4F4EC);
+}
+
+.mfmc-root .mfmc-account-add,
+.mfmc-primary-button {
+    -fx-background-color: linear-gradient(to bottom right, #6B93FF, #4F7CFF);
+}
+
+.mfmc-root .mfmc-account-add:hover,
+.mfmc-primary-button:hover {
+    -fx-background-color: linear-gradient(to bottom right, #5A85FA, #3D6BEF);
+}
+
+.mfmc-root .mfmc-account-add:pressed,
+.mfmc-primary-button:pressed {
+    -fx-background-color: linear-gradient(to bottom right, #4A74EA, #335FD8);
+}
+
+.mfmc-hero {
+    -fx-background-color: linear-gradient(to bottom right, #E4EEFF 0%, #EAF6F0 60%, #EEF9EA 100%);
+}
+
+.mfmc-launch-button {
+    -fx-background-color: linear-gradient(to bottom right, #E6F7DE 0%, #D9F0E6 50%, #D6E6FF 100%);
+}
+
+.mfmc-launch-button:hover {
+    -fx-background-color: linear-gradient(to bottom right, #DAF2CF 0%, #CCEADB 50%, #C8DDFF 100%);
+    -fx-effect: dropshadow(gaussian, rgba(60, 133, 39, 0.28), 18, 0.1, 0, 6);
+}

@@ -225,7 +225,15 @@ public final class MfmcRootPage extends StackPane implements DecoratorPage {
             content.getChildren().setAll(settingsPage.get());
         }
 
+        animateContent();
         tab.setSelected(true);
+    }
+
+    /// Plays the page-enter animation on the current content.
+    private void animateContent() {
+        if (!content.getChildren().isEmpty()) {
+            MfmcMotion.enter(content.getChildren().get(0));
+        }
     }
 
     /// Shows the launch tab.
@@ -250,12 +258,14 @@ public final class MfmcRootPage extends StackPane implements DecoratorPage {
     public void showAccountsPage() {
         launchTab.setSelected(true);
         content.getChildren().setAll(new MfmcAccountPage(this::showLaunchTab));
+        animateContent();
     }
 
     /// Opens the MFMC-owned install page for the selected Minecraft version.
     private void showGameInstallPage(GameRemoteVersion gameVersion) {
         downloadTab.setSelected(true);
         content.getChildren().setAll(new MfmcGameInstallPage(gameVersion, this::showDownloadTab, this::showLaunchTab));
+        animateContent();
     }
 
     /// Creates the classic download page inside the new top-level shell.

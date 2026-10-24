@@ -291,6 +291,7 @@ public final class MfmcLaunchPage extends StackPane {
         button.setMaxSize(160, 80);
         button.setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
         button.setFocusTraversable(true);
+        MfmcMotion.installHoverScale(button, 1.04);
 
         SVGContainer icon = SVG.ROCKET_LAUNCH.createIcon(30);
         icon.getStyleClass().add("mfmc-launch-icon");
