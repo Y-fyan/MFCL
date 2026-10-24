@@ -1060,3 +1060,213 @@
     -fx-background-color: linear-gradient(to bottom right, #DAF2CF 0%, #CCEADB 50%, #C8DDFF 100%);
     -fx-effect: dropshadow(gaussian, rgba(60, 133, 39, 0.28), 18, 0.1, 0, 6);
 }
+
+/* MFMC mod browser */
+
+.mfmc-mod-page {
+    -fx-background-color: transparent;
+}
+
+.mfmc-mod-page-title {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmc-mod-page-subtitle {
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmc-text-muted;
+}
+
+.mfmc-mod-filter {
+    -fx-padding: 0 0 2 0;
+}
+
+.mfmc-mod-filter-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmc-text-muted;
+}
+
+.mfmc-mod-filter .text-field,
+.mfmc-mod-filter .combo-box {
+    -fx-background-color: -mfmc-surface;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 5 8 5 8;
+}
+
+.mfmc-mod-search-button,
+.mfmc-mod-download-button {
+    -fx-background-color: linear-gradient(to bottom right, #6B93FF, #4F7CFF);
+    -fx-background-radius: 8;
+    -fx-padding: 6 14 6 14;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+    -fx-cursor: hand;
+}
+
+.mfmc-mod-search-button:hover,
+.mfmc-mod-download-button:hover {
+    -fx-background-color: linear-gradient(to bottom right, #5A85FA, #3D6BEF);
+}
+
+.mfmc-mod-list-card,
+.mfmc-mod-detail-card {
+    -fx-padding: 12;
+}
+
+.mfmc-mod-list {
+    -fx-background-color: transparent;
+    -fx-control-inner-background: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.mfmc-mod-list .virtual-flow,
+.mfmc-mod-list .clipped-container,
+.mfmc-mod-list .sheet {
+    -fx-background-color: transparent;
+}
+
+.mfmc-mod-list .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 0 0 8 0;
+}
+
+.mfmc-mod-list .list-cell:filled:selected {
+    -fx-background-color: transparent;
+}
+
+.mfmc-mod-row {
+    -fx-background-color: -mfmc-surface-muted;
+    -fx-background-radius: 12;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 12;
+    -fx-padding: 10 12 10 12;
+    -fx-cursor: hand;
+}
+
+.mfmc-mod-row:hover {
+    -fx-background-color: linear-gradient(to right, #EEF3FC, #EAF5F0);
+    -fx-border-color: #D5DFEE;
+}
+
+.mfmc-mod-row-title {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmc-mod-row-author {
+    -fx-font-size: 10px;
+    -fx-text-fill: -mfmc-text-faint;
+}
+
+.mfmc-mod-row-desc {
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmc-text-muted;
+}
+
+.mfmc-mod-tag {
+    -fx-background-color: -mfmc-primary-soft;
+    -fx-background-radius: 999;
+    -fx-padding: 1 7 1 7;
+    -fx-font-size: 9px;
+    -fx-text-fill: #315BDB;
+}
+
+.mfmc-mod-open-button {
+    -fx-background-color: transparent;
+    -fx-background-radius: 8;
+    -fx-padding: 6 8 6 8;
+    -fx-font-size: 10px;
+    -fx-text-fill: -mfmc-primary;
+    -fx-cursor: hand;
+}
+
+.mfmc-mod-open-button:hover {
+    -fx-background-color: -mfmc-primary-soft;
+}
+
+.mfmc-mod-detail-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-padding: 0;
+}
+
+.mfmc-mod-detail-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.mfmc-mod-detail-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmc-mod-detail-author {
+    -fx-font-size: 10px;
+    -fx-text-fill: -mfmc-text-faint;
+}
+
+.mfmc-mod-detail-desc {
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmc-text-muted;
+}
+
+.mfmc-mod-detail-placeholder {
+    -fx-font-size: 12px;
+    -fx-text-fill: -mfmc-text-faint;
+    -fx-padding: 24 4 24 4;
+}
+
+.mfmc-mod-version-list {
+    -fx-background-color: transparent;
+    -fx-control-inner-background: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.mfmc-mod-version-list .list-cell {
+    -fx-background-color: -mfmc-surface-muted;
+    -fx-background-radius: 10;
+    -fx-padding: 8 10 8 10;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 10;
+}
+
+.mfmc-mod-version-list .list-cell:filled:hover {
+    -fx-background-color: #F1F5FB;
+}
+
+.mfmc-mod-version-title {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmc-mod-version-meta {
+    -fx-font-size: 10px;
+    -fx-text-fill: -mfmc-text-muted;
+}
+
+.mfmc-mod-page-button {
+    -fx-background-color: -mfmc-surface-muted;
+    -fx-background-radius: 8;
+    -fx-padding: 5 10 5 10;
+    -fx-font-size: 10px;
+    -fx-text-fill: -mfmc-text;
+    -fx-cursor: hand;
+}
+
+.mfmc-mod-page-button:hover {
+    -fx-background-color: -mfmc-primary-soft;
+    -fx-text-fill: #315BDB;
+}
+
+.mfmc-mod-page-label {
+    -fx-font-size: 10px;
+    -fx-text-fill: -mfmc-text-faint;
+}

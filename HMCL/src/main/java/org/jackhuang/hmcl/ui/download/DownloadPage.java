@@ -38,6 +38,8 @@ import org.jackhuang.hmcl.task.Schedulers;
 import org.jackhuang.hmcl.task.Task;
 import org.jackhuang.hmcl.ui.Controllers;
 import org.jackhuang.hmcl.ui.FXUtils;
+import org.jackhuang.hmcl.ui.mfmc.MfmcModDownloadPage;
+import org.jackhuang.hmcl.ui.mfmc.MfmcUiMode;
 import org.jackhuang.hmcl.ui.SVG;
 import org.jackhuang.hmcl.ui.WeakListenerHolder;
 import org.jackhuang.hmcl.ui.animation.TransitionPane;
@@ -82,7 +84,7 @@ public class DownloadPage extends DecoratorAnimatedPage implements DecoratorPage
     private final ReadOnlyObjectWrapper<DecoratorPage.State> state = new ReadOnlyObjectWrapper<>(DecoratorPage.State.fromTitle(i18n("download"), -1));
     private final TabHeader tab;
     private final TabHeader.Tab<VersionsPage> newGameTab = new TabHeader.Tab<>("newGameTab");
-    private final TabHeader.Tab<DownloadListPage> modTab = new TabHeader.Tab<>("modTab");
+    private final TabHeader.Tab<Node> modTab = new TabHeader.Tab<>("modTab");
     private final TabHeader.Tab<DownloadListPage> modpackTab = new TabHeader.Tab<>("modpackTab");
     private final TabHeader.Tab<DownloadListPage> resourcePackTab = new TabHeader.Tab<>("resourcePackTab");
     private final TabHeader.Tab<DownloadListPage> shaderTab = new TabHeader.Tab<>("shaderTab");
@@ -123,7 +125,11 @@ public class DownloadPage extends DecoratorAnimatedPage implements DecoratorPage
             page.getActions().add(installLocalModpackButton);
             return page;
         }));
-        modTab.setNodeSupplier(loadVersionFor(() -> HMCLLocalizedDownloadListPage.ofMod(FOR_MOD, true)));
+        if (MfmcUiMode.isEnabled()) {
+            modTab.setNodeSupplier(MfmcModDownloadPage::new);
+        } else {
+            modTab.setNodeSupplier(loadVersionFor(() -> HMCLLocalizedDownloadListPage.ofMod(FOR_MOD, true)));
+        }
         resourcePackTab.setNodeSupplier(loadVersionFor(() -> HMCLLocalizedDownloadListPage.ofResourcePack(FOR_RESOURCE_PACK, true)));
         shaderTab.setNodeSupplier(loadVersionFor(() -> HMCLLocalizedDownloadListPage.ofShaderPack(FOR_SHADER, true)));
         worldTab.setNodeSupplier(loadVersionFor(() -> new DownloadListPage(RemoteAddon.Type.WORLD, CurseForgeRemoteAddonRepository.getInstance())));
@@ -200,8 +206,8 @@ public class DownloadPage extends DecoratorAnimatedPage implements DecoratorPage
         runInFX(() -> {
             if (repository.getGameDirectory() == GameDirectoryManager.getSelectedGameDirectory()) {
                 listenerHolder.add(FXUtils.onWeakChangeAndOperate(GameDirectoryManager.selectedInstanceProperty(), version -> {
-                    if (modTab.isInitialized()) {
-                        modTab.getNode().loadInstance(HMCLGameInstance.Optional.empty(repository));
+                    if (modTab.isInitialized() && modTab.getNode() instanceof ModDownloadPage page) {
+                        page.loadInstance(HMCLGameInstance.Optional.empty(repository));
                     }
                     if (modpackTab.isInitialized()) {
                         modpackTab.getNode().loadInstance(HMCLGameInstance.Optional.empty(repository));
@@ -238,9 +244,12 @@ public class DownloadPage extends DecoratorAnimatedPage implements DecoratorPage
         return resourcePackTab.getNode();
     }
 
-    public DownloadListPage showModDownloads() {
+    public ModDownloadPage showModDownloads() {
         tab.select(modTab, false);
-        return modTab.getNode();
+        if (modTab.getNode() instanceof ModDownloadPage page) {
+            return page;
+        }
+        throw new IllegalStateException("Mod download page is not initialized");
     }
 
     public void showWorldDownloads() {

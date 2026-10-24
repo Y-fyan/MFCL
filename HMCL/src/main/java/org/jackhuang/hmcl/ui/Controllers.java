@@ -476,7 +476,16 @@ public final class Controllers {
             return;
         }
 
-        PauseTransition delay = new PauseTransition(Duration.seconds(2));
+        double delaySeconds = 2;
+        String delayValue = System.getProperty("mfmc.ui.snapshot.delay");
+        if (delayValue != null) {
+            try {
+                delaySeconds = Math.max(0, Double.parseDouble(delayValue));
+            } catch (NumberFormatException e) {
+                LOG.warning("Invalid mfmc.ui.snapshot.delay: " + delayValue);
+            }
+        }
+        PauseTransition delay = new PauseTransition(Duration.seconds(delaySeconds));
         delay.setOnFinished(event -> {
             try {
                 WritableImage image = scene.snapshot(null);
