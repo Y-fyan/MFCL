@@ -60,6 +60,7 @@ import org.jackhuang.hmcl.ui.download.DownloadPage;
 import org.jackhuang.hmcl.ui.main.LauncherSettingsPage;
 import org.jackhuang.hmcl.ui.main.RootPage;
 import org.jackhuang.hmcl.ui.mfmc.MfmcRootPage;
+import org.jackhuang.hmcl.ui.mfmc.MfmclRootPage;
 import org.jackhuang.hmcl.ui.mfmc.MfmcUiMode;
 import org.jackhuang.hmcl.ui.terracotta.TerracottaPage;
 import org.jackhuang.hmcl.ui.instances.GameListPage;
@@ -287,7 +288,9 @@ public final class Controllers {
         configureMainStage(stage);
 
         boolean mfmcUi = MfmcUiMode.isEnabled();
-        Node mainPage = mfmcUi ? new MfmcRootPage() : getRootPage();
+        Node mainPage = mfmcUi
+                ? (MfmcUiMode.isMfmcl() ? new MfmclRootPage() : new MfmcRootPage())
+                : getRootPage();
         decorator = new Decorator(mainPage, Controllers::configureMainStage);
         Scene mainScene = decorator.attachStage(stage);
         if (!mfmcUi) {

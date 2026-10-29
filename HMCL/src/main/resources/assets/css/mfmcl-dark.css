@@ -1,0 +1,995 @@
+/*
+ * Hello Minecraft! Launcher
+ * Copyright (C) 2026  huangyuhui <huanghongxun2008@126.com> and contributors
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/*
+ * MFMCL dark sidebar theme.
+ *
+ * Loaded after mfmc-light.css and scoped to the MFMCL shell, so the light
+ * MFMC UI and the classic HMCL theme keep their own palettes.
+ */
+
+.mfmcl-root {
+    -mfmc-bg: #090C12;
+    -mfmc-surface: #10151F;
+    -mfmc-surface-muted: #151C27;
+    -mfmc-text: #F1F5F9;
+    -mfmc-text-muted: #93A0B3;
+    -mfmc-text-faint: #67758A;
+    -mfmc-border: #212A38;
+    -mfmc-primary: #00D285;
+    -mfmc-primary-hover: #21E39A;
+    -mfmc-primary-soft: rgba(0, 210, 133, 0.14);
+    -mfmc-green: #00D285;
+    -mfmc-green-hover: #21E39A;
+    -mfmc-green-pressed: #00B874;
+    -mfmc-shadow: rgba(0, 0, 0, 0.45);
+
+    -mfmcl-sidebar: #0B0F17;
+    -mfmcl-sidebar-border: #1B2331;
+    -mfmcl-sidebar-text: #AEBACC;
+    -mfmcl-accent: #00D285;
+    -mfmcl-accent-soft: rgba(0, 210, 133, 0.13);
+
+    -fx-background-color: -mfmc-bg;
+}
+
+.mfmcl-root,
+.mfmcl-root * {
+    -monet-primary: #00D285;
+    -monet-on-primary: #04120C;
+    -monet-primary-container: #0B3A28;
+    -monet-on-primary-container: #9DF3CE;
+    -monet-primary-fixed: #0B3A28;
+    -monet-primary-fixed-dim: #0E4A33;
+    -monet-on-primary-fixed: #CFFAE6;
+    -monet-on-primary-fixed-variant: #7FE8BC;
+    -monet-secondary: #AEBACC;
+    -monet-on-secondary: #0B0F17;
+    -monet-secondary-container: #1B2331;
+    -monet-on-secondary-container: #D7E0EC;
+    -monet-secondary-fixed: #1B2331;
+    -monet-secondary-fixed-dim: #222C3C;
+    -monet-on-secondary-fixed: #EEF3F9;
+    -monet-on-secondary-fixed-variant: #C2CCDA;
+    -monet-tertiary: #38BDF8;
+    -monet-on-tertiary: #04121B;
+    -monet-tertiary-container: #123043;
+    -monet-on-tertiary-container: #BAE6FD;
+    -monet-tertiary-fixed: #123043;
+    -monet-tertiary-fixed-dim: #17405A;
+    -monet-on-tertiary-fixed: #E0F2FE;
+    -monet-on-tertiary-fixed-variant: #7DD3FC;
+    -monet-error: #F87171;
+    -monet-on-error: #1B0505;
+    -monet-error-container: #3F1515;
+    -monet-on-error-container: #FECACA;
+    -monet-surface: #10151F;
+    -monet-on-surface: #F1F5F9;
+    -monet-surface-dim: #090C12;
+    -monet-surface-bright: #1B2331;
+    -monet-surface-container-lowest: #0B0F17;
+    -monet-surface-container-low: #10151F;
+    -monet-surface-container: #141A25;
+    -monet-surface-container-high: #1A2230;
+    -monet-surface-container-highest: #202A3A;
+    -monet-surface-variant: #1F2836;
+    -monet-on-surface-variant: #AEBACC;
+    -monet-background: #090C12;
+    -monet-on-background: #F1F5F9;
+    -monet-outline: #2A3547;
+    -monet-outline-variant: #212A38;
+    -monet-shadow: #000000;
+    -monet-scrim: #000000;
+    -monet-inverse-surface: #E8EDF5;
+    -monet-inverse-on-surface: #10151F;
+    -monet-inverse-primary: #0B3A28;
+    -monet-surface-tint: #00D285;
+    -monet-primary-seed: #00D285;
+    -monet-primary-transparent-50: rgba(0, 210, 133, 0.5);
+    -monet-primary-transparent-80: rgba(0, 210, 133, 0.8);
+    -monet-secondary-container-transparent-50: rgba(27, 35, 49, 0.5);
+    -monet-surface-transparent-50: rgba(16, 21, 31, 0.5);
+    -monet-surface-transparent-80: rgba(16, 21, 31, 0.8);
+    -monet-on-surface-variant-transparent-38: rgba(174, 186, 204, 0.38);
+    -monet-surface-container-low-transparent-80: rgba(16, 21, 31, 0.8);
+    -monet-secondary-container-transparent-80: rgba(27, 35, 49, 0.8);
+    -monet-inverse-surface-transparent-80: rgba(232, 237, 245, 0.8);
+}
+
+/* Shell */
+
+.mfmcl-shell {
+    -fx-background-color: -mfmc-bg;
+}
+
+.mfmcl-sidebar {
+    -fx-background-color: -mfmcl-sidebar;
+    -fx-border-color: transparent -mfmcl-sidebar-border transparent transparent;
+    -fx-border-width: 0 1 0 0;
+}
+
+.mfmcl-brand-name {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmcl-brand-sub {
+    -fx-font-size: 8px;
+    -fx-text-fill: -mfmc-text-faint;
+}
+
+.mfmcl-section-label {
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text-faint;
+    -fx-padding: 14 10 4 10;
+}
+
+.mfmcl-nav {
+    -fx-background-color: transparent;
+    -fx-background-radius: 10;
+    -fx-padding: 8 10 8 10;
+    -fx-font-size: 12px;
+    -fx-text-fill: -mfmcl-sidebar-text;
+    -fx-alignment: center-left;
+    -fx-graphic-text-gap: 10;
+    -fx-cursor: hand;
+}
+
+.mfmcl-nav .svg {
+    -fx-fill: -mfmc-text-faint;
+}
+
+.mfmcl-nav:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.05);
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmcl-nav:hover .svg {
+    -fx-fill: -mfmc-text;
+}
+
+.mfmcl-nav.active {
+    -fx-background-color: -mfmcl-accent-soft;
+    -fx-text-fill: -mfmcl-accent;
+    -fx-font-weight: bold;
+}
+
+.mfmcl-nav.active .svg {
+    -fx-fill: -mfmcl-accent;
+}
+
+.mfmcl-nav-muted {
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmc-text-muted;
+}
+
+.mfmcl-help-card {
+    -fx-background-color: -mfmc-surface;
+    -fx-background-radius: 12;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 12;
+    -fx-padding: 10 12 10 12;
+    -fx-cursor: hand;
+}
+
+.mfmcl-help-card:hover {
+    -fx-background-color: -mfmc-surface-muted;
+}
+
+.mfmcl-help-title {
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmcl-help-card .svg {
+    -fx-fill: -mfmcl-accent;
+}
+
+.mfmcl-account-footer {
+    -fx-background-color: -mfmc-surface;
+    -fx-background-radius: 12;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 12;
+    -fx-padding: 8 10 8 10;
+    -fx-cursor: hand;
+}
+
+.mfmcl-account-footer:hover {
+    -fx-background-color: -mfmc-surface-muted;
+}
+
+.mfmcl-avatar {
+    -fx-background-color: -mfmc-surface-muted;
+    -fx-background-radius: 0;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 0;
+    -fx-padding: 2;
+}
+
+.mfmcl-main {
+    -fx-background-color: -mfmc-bg;
+}
+
+.mfmcl-topbar {
+    -fx-padding: 12 22 12 22;
+    -fx-min-height: 56;
+    -fx-border-color: transparent transparent -mfmc-border transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.mfmcl-window-title {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmcl-breadcrumb {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmcl-breadcrumb-muted {
+    -fx-font-size: 12px;
+    -fx-text-fill: -mfmc-text-faint;
+}
+
+.mfmcl-search-trigger {
+    -fx-background-color: -mfmc-surface;
+    -fx-background-radius: 999;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 999;
+    -fx-padding: 6 14 6 12;
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmc-text-muted;
+    -fx-graphic-text-gap: 7;
+    -fx-cursor: hand;
+}
+
+.mfmcl-search-trigger .svg {
+    -fx-fill: -mfmc-text-faint;
+}
+
+.mfmcl-search-trigger:hover {
+    -fx-border-color: #2E3A4D;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmcl-status-pill {
+    -fx-background-color: rgba(0, 210, 133, 0.12);
+    -fx-background-radius: 999;
+    -fx-padding: 5 12 5 12;
+    -fx-font-size: 10px;
+    -fx-text-fill: #4EE0A8;
+}
+
+.mfmcl-content {
+    -fx-background-color: -mfmc-bg;
+    -fx-padding: 18 22 18 22;
+}
+
+.mfmcl-footer {
+    -fx-padding: 10 22 12 22;
+    -fx-border-color: -mfmc-border transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+
+.mfmcl-footer-status {
+    -fx-font-size: 10px;
+    -fx-text-fill: #4EE0A8;
+}
+
+.mfmcl-footer-link {
+    -fx-font-size: 10px;
+    -fx-text-fill: -mfmc-text-muted;
+    -fx-cursor: hand;
+}
+
+.mfmcl-footer-link:hover {
+    -fx-text-fill: -mfmcl-accent;
+}
+
+.mfmcl-scroll,
+.mfmcl-scroll > .viewport,
+.mfmcl-scroll > .corner {
+    -fx-background-color: transparent;
+}
+
+.mfmcl-scroll {
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.mfmcl-muted {
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmc-text-muted;
+}
+
+/* Pages */
+
+.mfmcl-page {
+    -fx-background-color: transparent;
+}
+
+.mfmcl-eyebrow {
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmcl-accent;
+}
+
+.mfmcl-page-title {
+    -fx-font-size: 24px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmcl-page-description {
+    -fx-font-size: 12px;
+    -fx-text-fill: -mfmc-text-muted;
+}
+
+.mfmcl-section-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+/* Overview hero */
+
+.mfmcl-hero {
+    -fx-background-color: linear-gradient(to bottom right, #0F2A22, #0C1520 55%, #101A28);
+    -fx-background-radius: 20;
+    -fx-border-color: #1D3B31;
+    -fx-border-radius: 20;
+    -fx-padding: 22;
+}
+
+.mfmcl-hero-content {
+    -fx-padding: 0 0 14 0;
+}
+
+.mfmcl-hero-badge {
+    -fx-background-color: rgba(0, 210, 133, 0.16);
+    -fx-background-radius: 999;
+    -fx-padding: 3 10 3 10;
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #6BE8B4;
+}
+
+.mfmcl-hero-kicker {
+    -fx-font-size: 9px;
+    -fx-text-fill: -mfmc-text-faint;
+}
+
+.mfmcl-hero-title {
+    -fx-font-size: 28px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmcl-hero-description {
+    -fx-font-size: 12px;
+    -fx-text-fill: -mfmc-text-muted;
+}
+
+.mfmcl-hero-note {
+    -fx-border-color: rgba(255, 255, 255, 0.08) transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+    -fx-padding: 12 0 0 0;
+}
+
+.mfmcl-hero-note-title {
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmcl-primary-button {
+    -fx-background-color: -mfmcl-accent;
+    -fx-background-radius: 10;
+    -fx-padding: 9 18 9 18;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #04120C;
+    -fx-graphic-text-gap: 7;
+    -fx-cursor: hand;
+}
+
+.mfmcl-primary-button:hover {
+    -fx-background-color: -mfmc-primary-hover;
+}
+
+.mfmcl-primary-button:pressed {
+    -fx-background-color: -mfmc-green-pressed;
+}
+
+.mfmcl-primary-button .svg {
+    -fx-fill: #04120C;
+}
+
+.mfmcl-quiet-button {
+    -fx-background-color: rgba(255, 255, 255, 0.06);
+    -fx-background-radius: 10;
+    -fx-padding: 9 16 9 16;
+    -fx-font-size: 12px;
+    -fx-text-fill: -mfmc-text;
+    -fx-cursor: hand;
+}
+
+.mfmcl-quiet-button:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Overview cards */
+
+.mfmcl-quick-card {
+    -fx-background-color: -mfmc-surface;
+    -fx-background-radius: 14;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 14;
+    -fx-padding: 14;
+    -fx-cursor: hand;
+}
+
+.mfmcl-quick-card:hover {
+    -fx-border-color: #2E4A3E;
+    -fx-background-color: #121A24;
+}
+
+.mfmcl-quick-card .svg {
+    -fx-fill: -mfmcl-accent;
+}
+
+.mfmcl-quick-title {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmcl-panel {
+    -fx-background-color: -mfmc-surface;
+    -fx-background-radius: 14;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 14;
+    -fx-padding: 16;
+}
+
+.mfmcl-panel-title {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmcl-readiness-row {
+    -fx-padding: 8 0 8 0;
+    -fx-border-color: transparent transparent -mfmc-border transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.mfmcl-readiness-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmc-text-muted;
+}
+
+.mfmcl-readiness-value {
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmcl-home-avatar {
+    -fx-background-color: -mfmc-surface-muted;
+    -fx-background-radius: 0;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 0;
+    -fx-padding: 2;
+}
+
+.mfmcl-account-name {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmcl-secondary-button {
+    -fx-background-color: -mfmc-surface-muted;
+    -fx-background-radius: 9;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 9;
+    -fx-padding: 7 14 7 14;
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmc-text;
+    -fx-cursor: hand;
+}
+
+.mfmcl-secondary-button:hover {
+    -fx-background-color: #1B2432;
+}
+
+/* Library */
+
+.mfmcl-toolbar {
+    -fx-padding: 0;
+}
+
+.mfmcl-search-field {
+    -fx-background-color: -mfmc-surface;
+    -fx-background-radius: 10;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 10;
+    -fx-padding: 8 12 8 12;
+    -fx-font-size: 12px;
+    -fx-text-fill: -mfmc-text;
+    -fx-prompt-text-fill: -mfmc-text-faint;
+}
+
+.mfmcl-search-field:focused {
+    -fx-border-color: -mfmcl-accent;
+}
+
+.mfmcl-filter-button {
+    -fx-background-color: -mfmc-surface;
+    -fx-background-radius: 999;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 999;
+    -fx-padding: 7 14 7 14;
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmc-text-muted;
+    -fx-cursor: hand;
+}
+
+.mfmcl-filter-button:hover {
+    -fx-text-fill: -mfmc-text;
+    -fx-border-color: #2E3A4D;
+}
+
+.mfmcl-filter-button:selected {
+    -fx-background-color: -mfmcl-accent-soft;
+    -fx-border-color: rgba(0, 210, 133, 0.35);
+    -fx-text-fill: -mfmcl-accent;
+    -fx-font-weight: bold;
+}
+
+.mfmcl-instance-list {
+    -fx-background-color: transparent;
+    -fx-control-inner-background: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.mfmcl-instance-list .virtual-flow,
+.mfmcl-instance-list .clipped-container,
+.mfmcl-instance-list .sheet {
+    -fx-background-color: transparent;
+}
+
+.mfmcl-instance-list .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 0 0 8 0;
+}
+
+.mfmcl-instance-list .list-cell:filled:selected {
+    -fx-background-color: transparent;
+}
+
+.mfmcl-instance-row {
+    -fx-background-color: -mfmc-surface;
+    -fx-background-radius: 14;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 14;
+    -fx-padding: 10 14 10 14;
+}
+
+.mfmcl-instance-cell:hover .mfmcl-instance-row {
+    -fx-background-color: #121A24;
+    -fx-border-color: #2A3648;
+}
+
+.mfmcl-instance-name {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmcl-tag {
+    -fx-background-color: rgba(56, 189, 248, 0.12);
+    -fx-background-radius: 999;
+    -fx-padding: 3 9 3 9;
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #7DD3FC;
+}
+
+.mfmcl-row-primary {
+    -fx-background-color: -mfmcl-accent;
+    -fx-background-radius: 9;
+    -fx-padding: 7 16 7 16;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #04120C;
+    -fx-cursor: hand;
+}
+
+.mfmcl-row-primary:hover {
+    -fx-background-color: -mfmc-primary-hover;
+}
+
+.mfmcl-row-secondary {
+    -fx-background-color: -mfmc-surface-muted;
+    -fx-background-radius: 9;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 9;
+    -fx-padding: 7 14 7 14;
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmc-text;
+    -fx-cursor: hand;
+}
+
+.mfmcl-row-secondary:hover {
+    -fx-background-color: #1B2432;
+    -fx-border-color: #2E3A4D;
+}
+
+.mfmcl-empty {
+    -fx-padding: 40;
+}
+
+.mfmcl-empty-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+/* Instance detail */
+
+.mfmcl-instance-header {
+    -fx-background-color: -mfmc-surface;
+    -fx-background-radius: 16;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 16;
+    -fx-padding: 18;
+}
+
+.mfmcl-info-row {
+    -fx-padding: 9 0 9 0;
+    -fx-border-color: transparent transparent -mfmc-border transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.mfmcl-info-key {
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmc-text-muted;
+}
+
+.mfmcl-info-value {
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmc-text;
+}
+
+/* Download hub */
+
+.mfmcl-download-grid {
+    -fx-background-color: transparent;
+}
+
+.mfmcl-category-card {
+    -fx-background-color: -mfmc-surface;
+    -fx-background-radius: 14;
+    -fx-border-color: -mfmc-border;
+    -fx-border-radius: 14;
+    -fx-padding: 16;
+    -fx-cursor: hand;
+}
+
+.mfmcl-category-card:hover {
+    -fx-background-color: #121A24;
+    -fx-border-color: #2E4A3E;
+}
+
+.mfmcl-category-icon {
+    -fx-background-color: -mfmcl-accent-soft;
+    -fx-background-radius: 9;
+    -fx-min-width: 30;
+    -fx-min-height: 30;
+    -fx-pref-width: 30;
+    -fx-pref-height: 30;
+}
+
+.mfmcl-category-title {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmcl-category-open {
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmcl-accent;
+}
+
+.mfmcl-shortcut-row {
+    -fx-padding: 1 0 1 0;
+}
+
+.mfmcl-shortcut-row .svg {
+    -fx-fill: -mfmc-text-muted;
+}
+
+.mfmcl-shortcut-title {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -mfmc-text;
+}
+
+/* Embedded pages */
+
+.mfmcl-embedded-page {
+    -fx-background-color: transparent;
+}
+
+.mfmcl-back-bar {
+    -fx-padding: 0 0 12 0;
+}
+
+.mfmcl-back-button {
+    -fx-background-color: transparent;
+    -fx-background-radius: 999;
+    -fx-padding: 6 12 6 8;
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmc-text-muted;
+    -fx-graphic-text-gap: 6;
+    -fx-cursor: hand;
+}
+
+.mfmcl-back-button .svg {
+    -fx-fill: -mfmc-text-muted;
+}
+
+.mfmcl-back-button:hover {
+    -fx-background-color: -mfmc-surface;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmcl-back-button:hover .svg {
+    -fx-fill: -mfmc-text;
+}
+
+/* Shared MFMC components, overridden for the dark shell */
+
+.mfmcl-root .mfmc-card,
+.mfmcl-root .mfmc-panel {
+    -fx-background-color: -mfmc-surface;
+    -fx-border-color: -mfmc-border;
+    -fx-effect: null;
+}
+
+.mfmcl-root .mfmc-account-box,
+.mfmcl-root .mfmc-account-row,
+.mfmcl-root .mfmc-mod-row,
+.mfmcl-root .mfmc-mod-detail-card {
+    -fx-background-color: -mfmc-surface-muted;
+    -fx-border-color: -mfmc-border;
+}
+
+.mfmcl-root .mfmc-account-box:hover,
+.mfmcl-root .mfmc-account-row:hover,
+.mfmcl-root .mfmc-mod-row:hover {
+    -fx-background-color: #1B2432;
+    -fx-border-color: #2E3A4D;
+}
+
+.mfmcl-root .mfmc-account-row.selected {
+    -fx-background-color: -mfmcl-accent-soft;
+    -fx-border-color: rgba(0, 210, 133, 0.35);
+}
+
+.mfmcl-root .mfmc-account-menu {
+    -fx-background-color: #141B26;
+    -fx-border-color: -mfmc-border;
+}
+
+.mfmcl-root .mfmc-account-menu-item:hover {
+    -fx-background-color: #1B2432;
+}
+
+.mfmcl-root .mfmc-account-menu-item.selected {
+    -fx-background-color: -mfmcl-accent-soft;
+}
+
+.mfmcl-root .mfmc-account-menu-text.accent {
+    -fx-text-fill: -mfmcl-accent;
+}
+
+.mfmcl-root .mfmc-subtab:selected {
+    -fx-background-color: -mfmcl-accent-soft;
+    -fx-text-fill: -mfmcl-accent;
+}
+
+.mfmcl-root .mfmc-version-list .list-cell:filled:hover,
+.mfmcl-root .mfmc-mod-list .list-cell:filled:hover,
+.mfmcl-root .mfmc-mod-version-list .list-cell:filled:hover {
+    -fx-background-color: #1B2432;
+}
+
+.mfmcl-root .mfmc-version-list .list-cell:filled:selected,
+.mfmcl-root .mfmc-mod-list .list-cell:filled:selected {
+    -fx-background-color: -mfmcl-accent-soft;
+}
+
+.mfmcl-root .mfmc-account-add,
+.mfmcl-root .mfmc-primary-button {
+    -fx-background-color: -mfmcl-accent;
+    -fx-text-fill: #04120C;
+}
+
+.mfmcl-root .mfmc-account-add:hover,
+.mfmcl-root .mfmc-primary-button:hover {
+    -fx-background-color: -mfmc-primary-hover;
+}
+
+.mfmcl-root .mfmc-account-add:pressed,
+.mfmcl-root .mfmc-primary-button:pressed {
+    -fx-background-color: -mfmc-green-pressed;
+}
+
+.mfmcl-root .mfmc-account-add .svg {
+    -fx-fill: #04120C;
+}
+
+.mfmcl-root .mfmc-account-row.selected {
+    -fx-background-color: linear-gradient(to right, #0E2A20, #12241B);
+    -fx-border-color: rgba(0, 210, 133, 0.35);
+}
+
+.mfmcl-root .mfmc-mod-search-button,
+.mfmcl-root .mfmc-mod-download-button {
+    -fx-background-color: -mfmcl-accent;
+    -fx-text-fill: #04120C;
+}
+
+.mfmcl-root .mfmc-mod-search-button:hover,
+.mfmcl-root .mfmc-mod-download-button:hover {
+    -fx-background-color: -mfmc-primary-hover;
+}
+
+.mfmcl-root .mfmc-mod-page-button,
+.mfmcl-root .mfmc-mod-open-button {
+    -fx-background-color: -mfmc-surface-muted;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmcl-root .mfmc-mod-page-button:hover,
+.mfmcl-root .mfmc-mod-open-button:hover {
+    -fx-background-color: -mfmcl-accent-soft;
+    -fx-text-fill: -mfmcl-accent;
+}
+
+.mfmcl-root .mfmc-mod-tag {
+    -fx-background-color: #1B2432;
+    -fx-text-fill: -mfmc-text-muted;
+}
+
+.mfmcl-root .mfmc-mod-download-button,
+.mfmcl-root .mfmc-install-button {
+    -fx-background-color: -mfmcl-accent;
+    -fx-text-fill: #04120C;
+}
+
+.mfmcl-root .mfmc-account-current {
+    -fx-background-color: rgba(0, 210, 133, 0.16);
+    -fx-text-fill: #6BE8B4;
+}
+
+.mfmcl-root .mfmc-news-card,
+.mfmcl-root .mfmc-hero {
+    -fx-background-color: -mfmc-surface;
+    -fx-border-color: -mfmc-border;
+    -fx-effect: null;
+}
+
+.mfmcl-root .mfmc-news-title,
+.mfmcl-root .mfmc-hero-title,
+.mfmcl-root .mfmc-about-name {
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmcl-root .mfmc-link-button {
+    -fx-text-fill: -mfmcl-accent;
+}
+
+.mfmcl-root .mfmcl-scroll .scroll-bar:vertical .thumb,
+.mfmcl-root .mfmcl-scroll .scroll-bar:horizontal .thumb {
+    -fx-background-color: #2A3547;
+    -fx-background-radius: 999;
+}
+
+.mfmcl-root .scroll-bar .thumb {
+    -fx-fill: #2A3547;
+}
+
+.mfmcl-root .scroll-bar:vertical .thumb,
+.mfmcl-root .scroll-bar:horizontal .thumb {
+    -fx-background-color: #2A3547;
+    -fx-background-insets: 0;
+    -fx-background-radius: 999;
+}
+
+.mfmcl-root .scroll-bar .increment-arrow,
+.mfmcl-root .scroll-bar .decrement-arrow {
+    -fx-background-color: #3A4A60;
+}
+
+.mfmcl-root .scroll-bar .increment-button,
+.mfmcl-root .scroll-bar .decrement-button {
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+}
+
+.mfmcl-root .scroll-bar > .track-background {
+    -fx-background-color: transparent;
+}
+
+.mfmcl-root .scroll-bar > .track {
+    -fx-fill: transparent;
+}
+
+.mfmcl-root .scroll-bar > .increment-button,
+.mfmcl-root .scroll-bar > .decrement-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.mfmcl-root .scroll-bar:vertical .thumb:hover,
+.mfmcl-root .scroll-bar:horizontal .thumb:hover {
+    -fx-background-color: #3A4A60;
+}
+
+.mfmcl-root .text-field,
+.mfmcl-root .combo-box,
+.mfmcl-root .combo-box-base,
+.mfmcl-root .list-view {
+    -fx-background-color: -mfmc-surface-muted;
+    -fx-control-inner-background: -mfmc-surface-muted;
+    -fx-control-inner-background-alt: -mfmc-surface;
+    -fx-text-fill: -mfmc-text;
+    -fx-prompt-text-fill: -mfmc-text-faint;
+}
+
+.mfmcl-root .combo-box .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -mfmc-text;
+}
+
+.mfmcl-root .combo-box-popup .list-view {
+    -fx-background-color: #141B26;
+    -fx-control-inner-background: #141B26;
+    -fx-control-inner-background-alt: #141B26;
+}
+
+.mfmcl-root .combo-box-popup .list-cell:filled:hover {
+    -fx-background-color: #1B2432;
+}
+
+.mfmcl-root .mfmcl-muted,
+.mfmcl-root .mfmc-muted {
+    -fx-text-fill: -mfmc-text-muted;
+}

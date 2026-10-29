@@ -108,6 +108,12 @@ public final class Decorator {
     /// The comfortable initial height for the MFMC shell.
     private static final double MFMC_DEFAULT_HEIGHT = 640.0;
 
+    /// The roomier initial size for the sidebar-based MFMCL shell.
+    private static final double MFMCL_DEFAULT_WIDTH = 1200.0;
+
+    /// The roomier initial height for the sidebar-based MFMCL shell.
+    private static final double MFMCL_DEFAULT_HEIGHT = 760.0;
+
     /// The minimum visible overlap, in pixels, used to accept a persisted window position.
     private static final double MIN_VISIBLE_WINDOW_AREA = 20.0;
 
@@ -728,7 +734,10 @@ public final class Decorator {
 
         // Migrate the classic 800x490 default to a roomier MFMC window while
         // still respecting explicitly resized windows.
-        if (MfmcUiMode.isEnabled() && savedWidth <= MIN_CONTENT_WIDTH && savedHeight <= MIN_CONTENT_HEIGHT) {
+        if (MfmcUiMode.isMfmcl() && savedWidth <= MIN_CONTENT_WIDTH && savedHeight <= MIN_CONTENT_HEIGHT) {
+            savedWidth = MFMCL_DEFAULT_WIDTH;
+            savedHeight = MFMCL_DEFAULT_HEIGHT;
+        } else if (MfmcUiMode.isEnabled() && savedWidth <= MIN_CONTENT_WIDTH && savedHeight <= MIN_CONTENT_HEIGHT) {
             savedWidth = MFMC_DEFAULT_WIDTH;
             savedHeight = MFMC_DEFAULT_HEIGHT;
         }

@@ -81,6 +81,16 @@ public class DownloadPage extends DecoratorAnimatedPage implements DecoratorPage
     public static final org.jackhuang.hmcl.ui.instances.DownloadPage.DownloadCallback FOR_SHADER =
             (downloadProvider, repository, version, shader, file) -> download(downloadProvider, repository, version, file, "shaderpacks");
 
+    /// The download categories exposed to alternative shells.
+    public enum Category {
+        GAME,
+        MODPACK,
+        MOD,
+        RESOURCE_PACK,
+        SHADER,
+        WORLD
+    }
+
     private final ReadOnlyObjectWrapper<DecoratorPage.State> state = new ReadOnlyObjectWrapper<>(DecoratorPage.State.fromTitle(i18n("download"), -1));
     private final TabHeader tab;
     private final TabHeader.Tab<VersionsPage> newGameTab = new TabHeader.Tab<>("newGameTab");
@@ -152,6 +162,20 @@ public class DownloadPage extends DecoratorAnimatedPage implements DecoratorPage
         setLeft(sideBar);
 
         setCenter(transitionPane);
+    }
+
+    /// Selects a download category.
+    ///
+    /// @param category the category to show
+    public void selectCategory(Category category) {
+        switch (category) {
+            case GAME -> tab.select(newGameTab);
+            case MODPACK -> tab.select(modpackTab);
+            case MOD -> tab.select(modTab);
+            case RESOURCE_PACK -> tab.select(resourcePackTab);
+            case SHADER -> tab.select(shaderTab);
+            case WORLD -> tab.select(worldTab);
+        }
     }
 
     private static <T extends Node> Supplier<T> loadVersionFor(Supplier<T> nodeSupplier) {

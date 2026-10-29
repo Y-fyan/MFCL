@@ -29,14 +29,25 @@ public final class MfmcUiMode {
     /// The system property or jar attribute used to select the launcher UI.
     public static final String PROPERTY = "hmcl.ui";
 
-    /// The value that enables the MFMC UI.
+    /// The value that enables the MFMC top-tab UI.
     public static final String MFMC = "mfmc";
 
-    /// Returns whether the MFMC UI is selected.
+    /// The value that enables the MFMCL sidebar UI.
+    public static final String MFMCL = "mfmcl";
+
+    /// Returns whether an MFMC-family UI is selected.
     ///
-    /// @return `true` when the MFMC UI should replace the classic root page
+    /// @return `true` when the classic root page should be replaced
     public static boolean isEnabled() {
-        return MFMC.equalsIgnoreCase(System.getProperty(PROPERTY, JarUtils.getAttribute(PROPERTY, "")));
+        String value = System.getProperty(PROPERTY, JarUtils.getAttribute(PROPERTY, ""));
+        return MFMC.equalsIgnoreCase(value) || MFMCL.equalsIgnoreCase(value);
+    }
+
+    /// Returns whether the MFMCL sidebar UI is selected.
+    ///
+    /// @return `true` for the MFMCL shell
+    public static boolean isMfmcl() {
+        return MFMCL.equalsIgnoreCase(System.getProperty(PROPERTY, JarUtils.getAttribute(PROPERTY, "")));
     }
 
     private MfmcUiMode() {
