@@ -17,135 +17,185 @@
  */
 package org.jackhuang.hmcl.ui.mfmc;
 
+import javafx.beans.binding.Bindings;
+import javafx.collections.ListChangeListener;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.layout.ColumnConstraints;
-import javafx.scene.layout.GridPane;
+import javafx.scene.control.ProgressBar;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
-import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import org.jackhuang.hmcl.setting.GameDirectoryManager;
-import org.jackhuang.hmcl.ui.FXUtils;
 import org.jackhuang.hmcl.ui.SVG;
-import org.jackhuang.hmcl.ui.download.DownloadPage;
-import org.jackhuang.hmcl.ui.instances.Instances;
 import org.jetbrains.annotations.NotNullByDefault;
 
-import java.util.function.Consumer;
+import java.util.HashSet;
+import java.util.Set;
 
-/// The MFMCL download hub.
+/// The MFMCL download task page.
 ///
-/// Presents the download categories as cards and opens the matching page in an
-/// embedded view, so the MFMCL sidebar stays in charge of navigation.
+/// Shows one card per launcher task and a shared list of the files currently
+/// being transferred. Task state comes from [MfmclTaskCenter], so the page
+/// reflects real installs and downloads instead of placeholder data.
 @NotNullByDefault
 public final class MfmclDownloadsPage extends VBox {
-    /// Opens the requested download category.
-    private final Consumer<DownloadPage.Category> openCategory;
+    /// Opens the content store from the empty state.
+    private final Runnable openStore;
 
-    /// Creates the download hub.
-    public MfmclDownloadsPage(Consumer<DownloadPage.Category> openCategory) {
-        this.openCategory = openCategory;
+    /// The task card container.
+    private final VBox taskList = new VBox(20);
+
+    /// The "正在下载的文件" section.
+    private final VBox fileSection = new VBox(14);
+
+    /// The file row container.
+    private final VBox fileList = new VBox(22);
+
+    /// The empty-state node.
+    private final Node emptyState;
+
+    /// Entries whose file list is already observed.
+    private final Set<MfmclTaskCenter.TaskEntry> observedEntries = new HashSet<>();
+
+    /// Creates the download task page.
+    ///
+    /// @param openStore opens the content store from the empty state
+    public MfmclDownloadsPage(Runnable openStore) {
+        this.openStore = openStore;
         getStyleClass().addAll("mfmcl-page", "mfmcl-downloads-page");
-        setSpacing(16);
 
-        Label eyebrow = new Label("下载中心");
-        eyebrow.getStyleClass().add("mfmcl-eyebrow");
-        Label title = new Label("想玩什么，就从这里开始。");
-        title.getStyleClass().add("mfmcl-page-title");
-        Label description = new Label("游戏版本、模组加载器、整合包与内容资源，都可以在同一个地方找到。");
-        description.getStyleClass().add("mfmcl-page-description");
-        description.setWrapText(true);
-        VBox heading = new VBox(4, eyebrow, title, description);
+        taskList.getStyleClass().add("mfmcl-task-list");
+        fileSection.getStyleClass().add("mfmcl-file-section");
 
-        Label gridTitle = new Label("下载分类");
-        gridTitle.getStyleClass().add("mfmcl-section-title");
+        Label fileTitle = new Label("正在下载的文件");
+        fileTitle.getStyleClass().add("mfmcl-file-section-title");
+        fileSection.getChildren().setAll(fileTitle, fileList);
 
-        GridPane grid = new GridPane();
-        grid.getStyleClass().add("mfmcl-download-grid");
-        grid.setHgap(12);
-        grid.setVgap(12);
-        for (int i = 0; i < 3; i++) {
-            ColumnConstraints column = new ColumnConstraints();
-            column.setPercentWidth(100.0 / 3.0);
-            column.setHgrow(Priority.ALWAYS);
-            grid.getColumnConstraints().add(column);
-        }
+        emptyState = createEmptyState();
 
-        grid.add(categoryCard("游戏版本", "正式版、快照与历史版本，可一并选择模组加载器",
-                SVG.STADIA_CONTROLLER, () -> openCategory.accept(DownloadPage.Category.GAME)), 0, 0);
-        grid.add(categoryCard("整合包", "一键安装完整整合包，自动补齐版本与模组",
-                SVG.PACKAGE2, () -> openCategory.accept(DownloadPage.Category.MODPACK)), 1, 0);
-        grid.add(categoryCard("模组", "搜索 Modrinth 与 CurseForge，直接安装到当前实例",
-                SVG.EXTENSION, () -> openCategory.accept(DownloadPage.Category.MOD)), 2, 0);
-        grid.add(categoryCard("资源包", "为方块、物品和界面换一套外观",
-                SVG.TEXTURE, () -> openCategory.accept(DownloadPage.Category.RESOURCE_PACK)), 0, 1);
-        grid.add(categoryCard("光影", "安装光影包，让世界的光线更自然",
-                SVG.WB_SUNNY, () -> openCategory.accept(DownloadPage.Category.SHADER)), 1, 1);
-        grid.add(categoryCard("世界", "下载社区地图与冒险存档",
-                SVG.PUBLIC, () -> openCategory.accept(DownloadPage.Category.WORLD)), 2, 1);
+        VBox body = new VBox(24, taskList, fileSection);
+        body.getStyleClass().add("mfmcl-page-body");
 
-        Label shortcutTitle = new Label("常用操作");
-        shortcutTitle.getStyleClass().add("mfmcl-section-title");
+        getChildren().setAll(
+                MfmclUi.header("下载任务", "一个任务包含多个文件；下方「正在下载的文件」只显示当前传输的那几个。"),
+                MfmclUi.scroll(body));
 
-        VBox shortcuts = new VBox(10);
-        shortcuts.getStyleClass().add("mfmcl-panel");
-        shortcuts.getChildren().setAll(
-                shortcutRow("从本地导入整合包", "选择 .zip 或 .mrpack 文件，导入为新的实例",
-                        SVG.FOLDER_OPEN, Instances::importModpack),
-                shortcutRow("打开游戏目录", "查看当前选中的游戏目录与实例文件",
-                        SVG.FOLDER, () -> FXUtils.openFolder(
-                                GameDirectoryManager.getSelectedRepository().getBaseDirectory()))
-        );
-
-        getChildren().setAll(heading, gridTitle, grid, shortcutTitle, shortcuts);
+        MfmclTaskCenter.getEntries().addListener((ListChangeListener<MfmclTaskCenter.TaskEntry>) change -> render());
+        render();
     }
 
-    /// Creates a clickable category card.
-    private VBox categoryCard(String title, String description, SVG icon, Runnable action) {
-        VBox card = new VBox(8);
-        card.getStyleClass().add("mfmcl-category-card");
-        HBox top = new HBox(10);
-        top.setAlignment(Pos.CENTER_LEFT);
-        StackPane iconFrame = new StackPane(icon.createIcon(17));
-        iconFrame.getStyleClass().add("mfmcl-category-icon");
-        Label name = new Label(title);
-        name.getStyleClass().add("mfmcl-category-title");
-        top.getChildren().setAll(iconFrame, name);
+    /// Rebuilds the task cards and file list.
+    private void render() {
+        taskList.getChildren().clear();
 
-        Label text = new Label(description);
-        text.getStyleClass().add("mfmcl-muted");
-        text.setWrapText(true);
+        if (MfmclTaskCenter.getEntries().isEmpty()) {
+            taskList.getChildren().setAll(emptyState);
+            fileSection.setVisible(false);
+            fileSection.setManaged(false);
+            return;
+        }
 
-        Label open = new Label("打开 →");
-        open.getStyleClass().add("mfmcl-category-open");
-
-        card.getChildren().setAll(top, text, open);
-        card.setOnMouseClicked(event -> {
-            if (event.getClickCount() == 1) {
-                action.run();
+        for (MfmclTaskCenter.TaskEntry entry : MfmclTaskCenter.getEntries()) {
+            taskList.getChildren().add(taskCard(entry));
+            if (observedEntries.add(entry)) {
+                entry.getFiles().addListener((ListChangeListener<MfmclTaskCenter.FileEntry>) change -> renderFiles());
             }
-        });
+        }
+
+        renderFiles();
+    }
+
+    /// Rebuilds the shared list of in-flight files.
+    private void renderFiles() {
+        fileList.getChildren().clear();
+
+        for (MfmclTaskCenter.TaskEntry entry : MfmclTaskCenter.getEntries()) {
+            for (MfmclTaskCenter.FileEntry file : entry.getFiles()) {
+                fileList.getChildren().add(fileRow(file));
+            }
+        }
+
+        boolean visible = !fileList.getChildren().isEmpty();
+        fileSection.setVisible(visible);
+        fileSection.setManaged(visible);
+    }
+
+    /// Creates one task card.
+    private Node taskCard(MfmclTaskCenter.TaskEntry entry) {
+        Label name = new Label();
+        name.textProperty().bind(entry.titleProperty());
+        name.getStyleClass().add("mfmcl-task-title");
+        name.setWrapText(true);
+
+        ProgressBar progress = new ProgressBar();
+        progress.progressProperty().bind(entry.progressProperty());
+        progress.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(progress, Priority.ALWAYS);
+
+        Label percent = new Label();
+        percent.textProperty().bind(Bindings.createStringBinding(
+                () -> Math.round(entry.progressProperty().get() * 100) + "%",
+                entry.progressProperty()));
+        percent.getStyleClass().add("mfmcl-task-percent");
+        percent.setMinWidth(48);
+        percent.setAlignment(Pos.CENTER_RIGHT);
+
+        HBox progressRow = new HBox(16, progress, percent);
+        progressRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label status = new Label();
+        status.textProperty().bind(entry.statusProperty());
+        status.getStyleClass().add("mfmcl-task-status");
+
+        Button cancel = new Button("取消");
+        cancel.getStyleClass().add("mfmcl-ghost-button");
+        cancel.setOnAction(event -> entry.cancel());
+        cancel.visibleProperty().bind(entry.activeProperty());
+        cancel.managedProperty().bind(entry.activeProperty());
+
+        HBox footer = new HBox(12, status, MfmclUi.spacer(), cancel);
+        footer.setAlignment(Pos.CENTER_LEFT);
+
+        VBox card = new VBox(14, name, progressRow, footer);
+        card.getStyleClass().add("mfmcl-task-card");
         return card;
     }
 
-    /// Creates a shortcut row.
-    private HBox shortcutRow(String title, String description, SVG icon, Runnable action) {
-        Label name = new Label(title);
-        name.getStyleClass().add("mfmcl-shortcut-title");
-        Label text = new Label(description);
-        text.getStyleClass().add("mfmcl-muted");
-        VBox copy = new VBox(2, name, text);
-        HBox.setHgrow(copy, Priority.ALWAYS);
+    /// Creates one in-flight file row.
+    private Node fileRow(MfmclTaskCenter.FileEntry file) {
+        Label name = new Label();
+        name.textProperty().bind(Bindings.createStringBinding(
+                () -> "资源 " + file.nameProperty().get(),
+                file.nameProperty()));
+        name.getStyleClass().add("mfmcl-file-title");
+        name.setWrapText(true);
 
-        Button button = new Button("打开");
-        button.getStyleClass().add("mfmcl-row-secondary");
-        button.setOnAction(event -> action.run());
+        Label detail = new Label();
+        detail.textProperty().bind(Bindings.createStringBinding(
+                () -> file.detailProperty().get() + " · " + Math.round(file.progressProperty().get() * 100) + "%",
+                file.detailProperty(), file.progressProperty()));
+        detail.getStyleClass().add("mfmcl-file-detail");
+        detail.setWrapText(true);
 
-        HBox row = new HBox(12, icon.createIcon(18), copy, button);
-        row.setAlignment(Pos.CENTER_LEFT);
-        row.getStyleClass().add("mfmcl-shortcut-row");
+        VBox row = new VBox(4, name, detail);
+        row.getStyleClass().add("mfmcl-file-row");
         return row;
+    }
+
+    /// Creates the empty state shown when no task has started this session.
+    private Node createEmptyState() {
+        Label title = new Label("暂无下载任务");
+        title.getStyleClass().add("mfmcl-empty-title");
+        Label hint = new Label("从内容商店安装游戏或模组后，任务会显示在这里。");
+        hint.getStyleClass().add("mfmcl-empty-text");
+        hint.setWrapText(true);
+
+        VBox box = new VBox(8, SVG.DOWNLOAD.createIcon(48), title, hint,
+                MfmclUi.primaryButton("前往内容商店", null, openStore));
+        box.setAlignment(Pos.CENTER);
+        box.getStyleClass().add("mfmcl-empty-state");
+        box.setMaxWidth(420);
+        return box;
     }
 }

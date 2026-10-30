@@ -20,13 +20,11 @@ package org.jackhuang.hmcl.ui.mfmc;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
-import org.jackhuang.hmcl.game.HMCLGameInstance;
 import org.jackhuang.hmcl.addon.mod.ModLoaderType;
+import org.jackhuang.hmcl.game.HMCLGameInstance;
 import org.jackhuang.hmcl.setting.GameDirectoryManager;
 import org.jackhuang.hmcl.ui.SVG;
 import org.jackhuang.hmcl.ui.instances.Instances;
@@ -36,8 +34,9 @@ import java.util.stream.Collectors;
 
 /// The MFMCL instance detail page.
 ///
-/// Keeps instance management inside the sidebar shell instead of navigating to
-/// the classic window pages.
+/// Keeps instance management inside the sidebar workspace instead of opening
+/// the classic HMCL pages. The page uses the same fixed header and scrolling
+/// body as the other MFMCL destinations.
 @NotNullByDefault
 public final class MfmclInstancePage extends VBox {
     /// The instance being inspected.
@@ -54,32 +53,22 @@ public final class MfmclInstancePage extends VBox {
         this.instance = instance;
         this.onChanged = onChanged;
         getStyleClass().addAll("mfmcl-page", "mfmcl-instance-page");
-        setSpacing(16);
 
-        ImageView icon = new ImageView(instance.getIconImage());
-        icon.setFitWidth(64);
-        icon.setFitHeight(64);
-        icon.setPreserveRatio(true);
-        icon.setSmooth(true);
+        Label heading = new Label(instance.getId().toString());
+        heading.getStyleClass().add("mfmcl-page-heading");
+        Label subtitle = new Label("Minecraft " + instance.getVersion() + loaderSuffix(instance));
+        subtitle.getStyleClass().add("mfmcl-page-subheading");
+        VBox copy = new VBox(6, heading, subtitle);
+        HBox.setHgrow(copy, Priority.ALWAYS);
 
-        Label name = new Label(instance.getId().toString());
-        name.getStyleClass().add("mfmcl-page-title");
-        Label meta = new Label("Minecraft " + instance.getVersion() + loaderSuffix(instance));
-        meta.getStyleClass().add("mfmcl-page-description");
-
-        Button launch = new Button("启动游戏");
-        launch.setGraphic(SVG.ROCKET_LAUNCH.createIcon(16));
-        launch.getStyleClass().add("mfmcl-primary-button");
-        launch.setOnAction(event -> {
+        Button back = MfmclUi.secondaryButton("返回游戏库", SVG.ARROW_BACK, onChanged);
+        Button launch = MfmclUi.primaryButton("启动游戏", SVG.ROCKET_LAUNCH, () -> {
             GameDirectoryManager.setSelectedInstance(instance);
             Instances.launch(instance);
         });
-
-        VBox copy = new VBox(4, name, meta, launch);
-        copy.setAlignment(Pos.CENTER_LEFT);
-        HBox header = new HBox(16, icon, copy);
+        HBox header = new HBox(12, copy, back, launch);
         header.setAlignment(Pos.CENTER_LEFT);
-        header.getStyleClass().add("mfmcl-instance-header");
+        header.getStyleClass().add("mfmcl-page-header");
 
         VBox details = new VBox(0);
         details.getStyleClass().add("mfmcl-panel");
@@ -90,15 +79,14 @@ public final class MfmclInstancePage extends VBox {
                 infoRow("游戏版本", instance.getVersion().toString()),
                 infoRow("模组加载器", loaderNames(instance)),
                 infoRow("实例目录", instance.getInstanceRoot().toAbsolutePath().toString()),
-                infoRow("运行目录", instance.getRunDirectory().toAbsolutePath().toString())
-        );
+                infoRow("运行目录", instance.getRunDirectory().toAbsolutePath().toString()));
 
-        Label manageTitle = new Label("管理操作");
-        manageTitle.getStyleClass().add("mfmcl-section-title");
-
-        VBox actions = new VBox(10);
+        VBox actions = new VBox(0);
         actions.getStyleClass().add("mfmcl-panel");
+        Label manageTitle = new Label("管理操作");
+        manageTitle.getStyleClass().add("mfmcl-panel-title");
         actions.getChildren().setAll(
+                manageTitle,
                 actionRow("打开游戏目录", "打开该实例的 mods、resourcepacks 与世界目录",
                         SVG.FOLDER, () -> Instances.openFolder(instance)),
                 actionRow("导出实例", "打包为整合包，便于备份或分享",
@@ -111,10 +99,12 @@ public final class MfmclInstancePage extends VBox {
                             onChanged.run();
                         }),
                 actionRow("高级设置", "进入经典实例设置页，调整内存、Java 与启动参数",
-                        SVG.SETTINGS, () -> Instances.modifyGameSettings(instance))
-        );
+                        SVG.SETTINGS, () -> Instances.modifyGameSettings(instance)));
 
-        getChildren().setAll(header, details, manageTitle, actions);
+        VBox body = new VBox(20, details, actions);
+        body.getStyleClass().add("mfmcl-page-body");
+
+        getChildren().setAll(header, MfmclUi.scroll(body));
     }
 
     /// Creates an information row.
@@ -125,9 +115,7 @@ public final class MfmclInstancePage extends VBox {
         text.getStyleClass().add("mfmcl-info-value");
         text.setWrapText(true);
         HBox.setHgrow(text, Priority.ALWAYS);
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox row = new HBox(12, key, spacer, text);
+        HBox row = new HBox(12, key, MfmclUi.spacer(), text);
         row.setAlignment(Pos.CENTER_LEFT);
         row.getStyleClass().add("mfmcl-info-row");
         return row;
@@ -138,15 +126,12 @@ public final class MfmclInstancePage extends VBox {
         Label name = new Label(title);
         name.getStyleClass().add("mfmcl-shortcut-title");
         Label text = new Label(description);
-        text.getStyleClass().add("mfmcl-muted");
+        text.getStyleClass().add("mfmcl-shortcut-text");
         VBox copy = new VBox(2, name, text);
         HBox.setHgrow(copy, Priority.ALWAYS);
 
-        Button button = new Button("打开");
-        button.getStyleClass().add("mfmcl-row-secondary");
-        button.setOnAction(event -> action.run());
-
-        HBox row = new HBox(12, icon.createIcon(18), copy, button);
+        HBox row = new HBox(12, icon.createIcon(18), copy,
+                MfmclUi.secondaryButton("打开", null, action));
         row.setAlignment(Pos.CENTER_LEFT);
         row.getStyleClass().add("mfmcl-shortcut-row");
         return row;

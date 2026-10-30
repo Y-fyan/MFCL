@@ -61,6 +61,7 @@ import org.jackhuang.hmcl.ui.main.LauncherSettingsPage;
 import org.jackhuang.hmcl.ui.main.RootPage;
 import org.jackhuang.hmcl.ui.mfmc.MfmcRootPage;
 import org.jackhuang.hmcl.ui.mfmc.MfmclRootPage;
+import org.jackhuang.hmcl.ui.mfmc.MfmclTaskCenter;
 import org.jackhuang.hmcl.ui.mfmc.MfmcUiMode;
 import org.jackhuang.hmcl.ui.terracotta.TerracottaPage;
 import org.jackhuang.hmcl.ui.instances.GameListPage;
@@ -662,13 +663,18 @@ public final class Controllers {
         TaskExecutorDialogPane pane = new TaskExecutorDialogPane(onCancel);
         pane.setTitle(title);
         pane.setExecutor(executor);
+        MfmclTaskCenter.register(executor, title, null);
         dialog(pane);
         return pane;
     }
 
     public static TaskExecutorDialogPane taskDialog(Task<?> task, String title, @NotNull TaskCancellationAction onCancel) {
         TaskExecutor executor = task.executor();
-        TaskExecutorDialogPane pane = taskDialog(executor, title, onCancel);
+        TaskExecutorDialogPane pane = new TaskExecutorDialogPane(onCancel);
+        pane.setTitle(title);
+        pane.setExecutor(executor);
+        MfmclTaskCenter.register(executor, title, task);
+        dialog(pane);
         executor.start();
         return pane;
     }

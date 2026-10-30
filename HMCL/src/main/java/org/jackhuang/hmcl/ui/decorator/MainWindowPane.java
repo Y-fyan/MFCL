@@ -253,12 +253,16 @@ final class MainWindowPane extends StackPane {
     /// Recomputes the title-bar background for the current theme and transparency preference.
     private void updateTitleBarBackground() {
         if (isMfmcRoot()) {
+            // The MFMCL workspace owns its own palette, including a dark
+            // variant, so the title bar follows the shell instead of the
+            // global theme.
+            boolean dark = isMfmcDarkRoot();
             titleBar.setBackground(new Background(new BackgroundFill(
-                    Color.WHITE,
+                    Color.web(dark ? "#111827" : "#FFFFFF"),
                     CornerRadii.EMPTY,
                     Insets.EMPTY)));
             titleBar.setBorder(new Border(new BorderStroke(
-                    Color.web("#E6EBF3"),
+                    Color.web(dark ? "#374151" : "#E6EBF3"),
                     BorderStrokeStyle.SOLID,
                     CornerRadii.EMPTY,
                     new BorderWidths(0, 0, 1, 0))));
@@ -286,16 +290,29 @@ final class MainWindowPane extends StackPane {
 
     /// Returns whether the current page is the MFMC root page.
     private boolean isMfmcRoot() {
-        if (decorator.getNavigator().size() == 0) {
-            return false;
-        }
-        Node page = decorator.getNavigator().getCurrentPage();
+        Node page = currentPage();
         return page != null && page.getStyleClass().contains("mfmc-root");
+    }
+
+    /// Returns whether the current page is the MFMCL workspace in its dark palette.
+    private boolean isMfmcDarkRoot() {
+        Node page = currentPage();
+        return page != null && page.getStyleClass().contains("mfmcl-dark");
+    }
+
+    /// Returns the page currently displayed by the navigator, or `null`.
+    private @Nullable Node currentPage() {
+        if (decorator.getNavigator().size() == 0) {
+            return null;
+        }
+        return decorator.getNavigator().getCurrentPage();
     }
 
     /// Updates the window-button icon fill for the current page.
     private void updateWindowButtonFill() {
-        Paint fill = isMfmcRoot() ? Color.web("#6B7280") : Themes.titleFillProperty().getValue();
+        Paint fill = isMfmcRoot()
+                ? Color.web(isMfmcDarkRoot() ? "#D1D5DB" : "#6B7280")
+                : Themes.titleFillProperty().getValue();
         helpIcon.setFill(fill);
         minimizeIcon.setFill(fill);
         closeIcon.setFill(fill);

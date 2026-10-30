@@ -124,6 +124,16 @@ public class FileDownloadTask extends FetchTask<Void> {
         return file;
     }
 
+    /// Returns the primary remote URL of this download.
+    ///
+    /// The launcher task list shows the source address next to the file name,
+    /// which is more useful for diagnostics than the local target path.
+    ///
+    /// @return the displayable URL of the preferred download candidate
+    public String getPrimaryDisplayUrl() {
+        return candidates.getPrimaryCandidate().displayUrl();
+    }
+
     public void setCaching(boolean caching) {
         this.caching = caching;
     }

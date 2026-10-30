@@ -18,286 +18,220 @@
 package org.jackhuang.hmcl.ui.mfmc;
 
 import javafx.beans.value.ObservableValue;
-import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
-import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Pos;
-import javafx.scene.control.Button;
+import javafx.scene.Node;
 import javafx.scene.control.Label;
-import javafx.scene.control.ListCell;
-import javafx.scene.control.ListView;
-import javafx.scene.control.TextField;
-import javafx.scene.control.ToggleButton;
-import javafx.scene.control.ToggleGroup;
+import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import org.jackhuang.hmcl.addon.mod.ModLoaderType;
 import org.jackhuang.hmcl.game.HMCLGameInstance;
 import org.jackhuang.hmcl.game.HMCLGameRepository;
 import org.jackhuang.hmcl.game.HMCLGameRepositorySnapshot;
-import org.jackhuang.hmcl.addon.mod.ModLoaderType;
 import org.jackhuang.hmcl.setting.GameDirectoryManager;
 import org.jackhuang.hmcl.ui.FXUtils;
 import org.jackhuang.hmcl.ui.SVG;
 import org.jackhuang.hmcl.ui.instances.Instances;
 import org.jackhuang.hmcl.util.javafx.BindingMapping;
 import org.jetbrains.annotations.NotNullByDefault;
-import org.jetbrains.annotations.Nullable;
 
-import java.util.Locale;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-/// The MFMCL instance library page.
+/// The MFMCL game library.
 ///
-/// Lists every installed instance with search and loader filters, and offers
-/// direct launch and management actions.
+/// Mirrors the official launcher: one card per instance, two columns on wide
+/// windows and a single column on narrow ones. Each card exposes launch and
+/// manage actions without leaving the sidebar workspace.
 @NotNullByDefault
 public final class MfmclLibraryPage extends VBox {
-    /// Opens the download centre for creating a new instance.
-    private final Runnable showDownloads;
+    /// Opens the content store when the user wants a new instance.
+    private final Runnable createInstance;
 
-    /// Called when the user selects an instance.
+    /// Opens the instance detail page.
     private final Consumer<HMCLGameInstance> onSelect;
 
-    /// The text used to filter instances.
-    private final TextField searchField = new TextField();
-
-    /// The complete instance list.
-    private final ObservableList<HMCLGameInstance> instances = FXCollections.observableArrayList();
-
-    /// The filtered instance list shown in the table.
-    private final FilteredList<HMCLGameInstance> filtered = new FilteredList<>(instances);
-
-    /// The instance table.
-    private final ListView<HMCLGameInstance> list = new ListView<>(filtered);
-
-    /// The count label under the heading.
+    /// The instance count caption in the page header.
     private final Label countLabel = new Label();
 
-    /// The currently selected filter mode.
-    private FilterMode filterMode = FilterMode.ALL;
+    /// The card container.
+    private final GridPane grid = new GridPane();
+
+    /// The scrollable content wrapper.
+    private final VBox body = new VBox();
 
     /// The repository snapshot used to refresh the library after loading.
     private final ObservableValue<HMCLGameRepositorySnapshot> repositorySnapshot =
             BindingMapping.of(GameDirectoryManager.selectedRepositoryProperty())
                     .flatMap(HMCLGameRepository::snapshotProperty);
 
+    /// The current card column count.
+    private int columns;
+
     /// Creates the library page.
-    public MfmclLibraryPage(Runnable showDownloads, Consumer<HMCLGameInstance> onSelect) {
-        this.showDownloads = showDownloads;
+    ///
+    /// @param createInstance opens the store for creating a new instance
+    /// @param onSelect       opens the detail page for an instance
+    public MfmclLibraryPage(Runnable createInstance, Consumer<HMCLGameInstance> onSelect) {
+        this.createInstance = createInstance;
         this.onSelect = onSelect;
         getStyleClass().addAll("mfmcl-page", "mfmcl-library-page");
-        setSpacing(16);
 
-        Label eyebrow = new Label("实例库");
-        eyebrow.getStyleClass().add("mfmcl-eyebrow");
-        Label title = new Label("你的每个世界，都独立生长。");
-        title.getStyleClass().add("mfmcl-page-title");
-        countLabel.getStyleClass().add("mfmcl-page-description");
-        VBox heading = new VBox(4, eyebrow, title, countLabel);
+        countLabel.getStyleClass().add("mfmcl-page-subheading");
 
-        searchField.setPromptText("搜索实例名称或版本");
-        searchField.getStyleClass().add("mfmcl-search-field");
-        searchField.textProperty().addListener((observable, oldValue, newValue) -> applyFilter());
-        HBox.setHgrow(searchField, Priority.ALWAYS);
+        Label heading = new Label("游戏库");
+        heading.getStyleClass().add("mfmcl-page-heading");
+        VBox copy = new VBox(6, heading, countLabel);
+        HBox.setHgrow(copy, Priority.ALWAYS);
+        HBox header = new HBox(16, copy,
+                MfmclUi.primaryButton("创建游戏", SVG.ADD, createInstance));
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.getStyleClass().add("mfmcl-page-header");
 
-        ToggleGroup filterGroup = new ToggleGroup();
-        ToggleButton all = filterButton("全部", filterGroup, true, FilterMode.ALL);
-        ToggleButton vanilla = filterButton("原版", filterGroup, false, FilterMode.VANILLA);
-        ToggleButton modded = filterButton("模组", filterGroup, false, FilterMode.MODDED);
+        grid.getStyleClass().add("mfmcl-instance-grid");
+        grid.setHgap(24);
+        grid.setVgap(24);
+        body.getStyleClass().add("mfmcl-page-body");
+        body.getChildren().setAll(grid);
 
-        Button create = new Button("创建实例");
-        create.setGraphic(SVG.ADD.createIcon(16));
-        create.getStyleClass().add("mfmcl-primary-button");
-        create.setOnAction(event -> showDownloads.run());
+        getChildren().setAll(header, MfmclUi.scroll(body));
 
-        HBox toolbar = new HBox(8, searchField, all, vanilla, modded, create);
-        toolbar.setAlignment(Pos.CENTER_LEFT);
-        toolbar.getStyleClass().add("mfmcl-toolbar");
-
-        list.getStyleClass().add("mfmcl-instance-list");
-        VBox.setVgrow(list, Priority.ALWAYS);
-        list.setCellFactory(view -> new InstanceCell(this::launch, this::manage));
-        list.setPlaceholder(createPlaceholder());
-
-        getChildren().setAll(heading, toolbar, list);
-
+        widthProperty().addListener((observable, oldValue, newValue) -> rebuildIfNeeded());
         FXUtils.onChangeAndOperate(repositorySnapshot, snapshot -> refresh());
-    }
-
-    /// Creates a filter button.
-    private ToggleButton filterButton(String text, ToggleGroup group, boolean selected, FilterMode mode) {
-        ToggleButton button = new ToggleButton(text);
-        button.setToggleGroup(group);
-        button.setSelected(selected);
-        button.getStyleClass().add("mfmcl-filter-button");
-        button.setOnAction(event -> {
-            filterMode = mode;
-            applyFilter();
-        });
-        return button;
-    }
-
-    /// Applies the search and filter predicate.
-    private void applyFilter() {
-        String query = searchField.getText() == null ? "" : searchField.getText().trim().toLowerCase(Locale.ROOT);
-        FilterMode mode = filterMode;
-        filtered.setPredicate(instance -> matchesQuery(instance, query) && matchesMode(instance, mode));
-        updateCount();
-    }
-
-    /// Returns whether an instance matches the search query.
-    private static boolean matchesQuery(HMCLGameInstance instance, String query) {
-        if (query.isEmpty()) {
-            return true;
-        }
-        return instance.getId().toString().toLowerCase(Locale.ROOT).contains(query)
-                || instance.getVersion().toString().toLowerCase(Locale.ROOT).contains(query)
-                || loaderNames(instance).toLowerCase(Locale.ROOT).contains(query);
-    }
-
-    /// Returns whether an instance matches the requested filter mode.
-    private static boolean matchesMode(HMCLGameInstance instance, FilterMode mode) {
-        return switch (mode) {
-            case ALL -> true;
-            case VANILLA -> instance.getModLoaders().isEmpty();
-            case MODDED -> !instance.getModLoaders().isEmpty();
-        };
     }
 
     /// Refreshes the library from the selected repository.
     public void refresh() {
-        instances.setAll(GameDirectoryManager.getSelectedRepository().getDisplayInstances().toList());
-        updateCount();
+        List<HMCLGameInstance> instances = GameDirectoryManager.getSelectedRepository()
+                .getDisplayInstances()
+                .toList();
+
+        countLabel.setText(instances.isEmpty()
+                ? "还没有实例，先创建一个游戏。"
+                : "共 " + instances.size() + " 个实例，选择启动或管理。");
+
+        grid.getChildren().clear();
+        grid.getColumnConstraints().clear();
+
+        if (instances.isEmpty()) {
+            grid.getChildren().add(emptyState());
+            return;
+        }
+
+        columns = desiredColumns();
+        for (int i = 0; i < columns; i++) {
+            ColumnConstraints constraint = new ColumnConstraints();
+            constraint.setPercentWidth(100.0 / columns);
+            constraint.setHgrow(Priority.ALWAYS);
+            grid.getColumnConstraints().add(constraint);
+        }
+
+        for (int i = 0; i < instances.size(); i++) {
+            HMCLGameInstance instance = instances.get(i);
+            Node card = instanceCard(instance);
+            GridPane.setHgrow(card, Priority.ALWAYS);
+            grid.add(card, i % columns, i / columns);
+        }
     }
 
-    /// Focuses the search field.
-    public void focusSearch() {
-        searchField.requestFocus();
+    /// Rebuilds the grid when the window crosses the two-column threshold.
+    private void rebuildIfNeeded() {
+        if (columns > 0 && desiredColumns() != columns) {
+            refresh();
+        }
     }
 
-    /// Updates the instance count caption.
-    private void updateCount() {
-        int total = instances.size();
-        int shown = filtered.size();
-        String suffix = switch (filterMode) {
-            case ALL -> "";
-            case VANILLA -> " · 原版";
-            case MODDED -> " · 模组";
-        };
-        countLabel.setText(shown == total
-                ? total + " 个实例" + suffix
-                : "显示 " + shown + " / " + total + " 个实例" + suffix);
+    /// Returns the column count for the current page width.
+    private int desiredColumns() {
+        return getWidth() >= 820 ? 2 : 1;
     }
 
-    /// Creates the empty-state placeholder.
-    private static VBox createPlaceholder() {
-        Label title = new Label("还没有实例");
+    /// Creates one instance card.
+    private HBox instanceCard(HMCLGameInstance instance) {
+        Image iconImage = instance.getIconImage();
+        Node icon;
+        if (iconImage != null) {
+            ImageView image = new ImageView(iconImage);
+            image.setFitWidth(40);
+            image.setFitHeight(40);
+            image.setPreserveRatio(true);
+            image.setSmooth(true);
+            icon = image;
+        } else {
+            icon = SVG.PACKAGE2.createIcon(28);
+        }
+        StackPane iconTile = new StackPane(icon);
+        iconTile.getStyleClass().add("mfmcl-instance-icon");
+        iconTile.setMinSize(64, 64);
+        iconTile.setPrefSize(64, 64);
+        iconTile.setMaxSize(64, 64);
+
+        Label name = new Label(instance.getId().toString());
+        name.getStyleClass().add("mfmcl-instance-name");
+        name.setWrapText(true);
+
+        Label meta = new Label(instanceMeta(instance));
+        meta.getStyleClass().add("mfmcl-instance-meta");
+        meta.setWrapText(true);
+
+        Label location = new Label(instance.getInstanceRoot().toAbsolutePath().toString());
+        location.getStyleClass().add("mfmcl-instance-location");
+        location.setWrapText(true);
+
+        VBox info = new VBox(4, name, meta, location);
+        info.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(info, Priority.ALWAYS);
+
+        HBox actions = new HBox(8,
+                MfmclUi.primaryButton("启动", SVG.ROCKET_LAUNCH, () -> launch(instance)),
+                MfmclUi.secondaryButton("管理", null, () -> onSelect.accept(instance)));
+        actions.setAlignment(Pos.CENTER_RIGHT);
+        actions.getStyleClass().add("mfmcl-instance-actions");
+
+        HBox card = new HBox(16, iconTile, info, actions);
+        card.setAlignment(Pos.CENTER_LEFT);
+        card.getStyleClass().add("mfmcl-instance-card");
+        card.setMaxWidth(Double.MAX_VALUE);
+        return card;
+    }
+
+    /// Builds the empty state shown when no instance exists.
+    private Node emptyState() {
+        Label title = new Label("还没有游戏实例");
         title.getStyleClass().add("mfmcl-empty-title");
-        Label hint = new Label("从下载中心安装一个 Minecraft 版本，实例会自动出现在这里。");
-        hint.getStyleClass().add("mfmcl-muted");
+        Label hint = new Label("从内容商店安装一个 Minecraft 版本，实例会自动出现在这里。");
+        hint.getStyleClass().add("mfmcl-empty-text");
         hint.setWrapText(true);
-        VBox box = new VBox(6, title, hint);
+
+        VBox box = new VBox(8, SVG.PACKAGE2.createIcon(48), title, hint,
+                MfmclUi.primaryButton("创建游戏", SVG.ADD, createInstance));
         box.setAlignment(Pos.CENTER);
-        box.getStyleClass().add("mfmcl-empty");
+        box.getStyleClass().add("mfmcl-empty-state");
+        box.setMaxWidth(420);
+        GridPane.setColumnSpan(box, Math.max(1, columns));
         return box;
     }
 
-    /// Launches the selected instance.
+    /// Launches an instance.
     private void launch(HMCLGameInstance instance) {
         GameDirectoryManager.setSelectedInstance(instance);
         Instances.launch(instance);
     }
 
-    /// Opens the instance settings page.
-    private void manage(HMCLGameInstance instance) {
-        GameDirectoryManager.setSelectedInstance(instance);
-        onSelect.accept(instance);
-        Instances.modifyGameSettings(instance);
-    }
-
-    /// Returns the display names of the instance loaders.
-    private static String loaderNames(HMCLGameInstance instance) {
-        return instance.getModLoaders().stream()
+    /// Returns the version and loader summary for a card.
+    private static String instanceMeta(HMCLGameInstance instance) {
+        String loaders = instance.getModLoaders().stream()
                 .map(ModLoaderType::displayName)
                 .sorted()
                 .collect(Collectors.joining(" + "));
-    }
-
-    /// The pre-set filters shown above the instance table.
-    private enum FilterMode {
-        ALL,
-        VANILLA,
-        MODDED
-    }
-
-    /// A single instance row.
-    private static final class InstanceCell extends ListCell<HMCLGameInstance> {
-        private final ImageView icon = new ImageView();
-        private final Label name = new Label();
-        private final Label meta = new Label();
-        private final Label loaderTag = new Label();
-        private final Button launch = new Button("启动");
-        private final Button manage = new Button("管理");
-        private final HBox row;
-
-        private InstanceCell(Consumer<HMCLGameInstance> launchAction, Consumer<HMCLGameInstance> manageAction) {
-            getStyleClass().add("mfmcl-instance-cell");
-            icon.setFitWidth(44);
-            icon.setFitHeight(44);
-            icon.setPreserveRatio(true);
-            icon.setSmooth(true);
-
-            name.getStyleClass().add("mfmcl-instance-name");
-            meta.getStyleClass().add("mfmcl-muted");
-            loaderTag.getStyleClass().add("mfmcl-tag");
-
-            VBox copy = new VBox(2, name, meta);
-            copy.setAlignment(Pos.CENTER_LEFT);
-            HBox.setHgrow(copy, Priority.ALWAYS);
-
-            launch.getStyleClass().add("mfmcl-row-primary");
-            manage.getStyleClass().add("mfmcl-row-secondary");
-
-            row = new HBox(12, icon, copy, loaderTag, launch, manage);
-            row.setAlignment(Pos.CENTER_LEFT);
-            row.getStyleClass().add("mfmcl-instance-row");
-
-            launch.setOnAction(event -> {
-                HMCLGameInstance item = getItem();
-                if (item != null) {
-                    launchAction.accept(item);
-                }
-            });
-            manage.setOnAction(event -> {
-                HMCLGameInstance item = getItem();
-                if (item != null) {
-                    manageAction.accept(item);
-                }
-            });
-        }
-
-        @Override
-        protected void updateItem(@Nullable HMCLGameInstance item, boolean empty) {
-            super.updateItem(item, empty);
-            if (empty || item == null) {
-                setGraphic(null);
-                setText(null);
-                return;
-            }
-
-            icon.setImage(item.getIconImage());
-            name.setText(item.getId().toString());
-            meta.setText("Minecraft " + item.getVersion());
-
-            String loaders = loaderNames(item);
-            loaderTag.setText(loaders);
-            loaderTag.setVisible(!loaders.isEmpty());
-            loaderTag.setManaged(!loaders.isEmpty());
-
-            setGraphic(row);
-        }
+        return loaders.isEmpty()
+                ? "Minecraft " + instance.getVersion()
+                : "Minecraft " + instance.getVersion() + " · " + loaders;
     }
 }

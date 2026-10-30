@@ -63,6 +63,15 @@ public final class MfmcAccountPage extends BorderPane {
     ///
     /// @param backAction action used by the back button
     public MfmcAccountPage(Runnable backAction) {
+        this(backAction, true);
+    }
+
+    /// Creates the account management page.
+    ///
+    /// @param backAction action used by the back button
+    /// @param showHeader whether to render the MFMC page header; embedded
+    ///                   workspaces supply their own header and padding
+    public MfmcAccountPage(Runnable backAction, boolean showHeader) {
         this.backAction = backAction;
         getStyleClass().add("mfmc-account-page");
 
@@ -88,8 +97,12 @@ public final class MfmcAccountPage extends BorderPane {
         card.getStyleClass().add("mfmc-card");
         VBox.setVgrow(accountList, Priority.ALWAYS);
 
-        setTop(createHeader());
-        setCenter(card);
+        if (showHeader) {
+            setTop(createHeader());
+            setCenter(card);
+        } else {
+            setCenter(card);
+        }
     }
 
     /// Builds the page header.

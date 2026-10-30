@@ -1,0 +1,735 @@
+/*
+ * Hello Minecraft! Launcher
+ * Copyright (C) 2026  huangyuhui <huanghongxun2008@126.com> and contributors
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/*
+ * MFMCL light workspace.
+ *
+ * This sheet is attached to the MFMCL root only. It mirrors the official
+ * MFMCL design tokens (neutral greys, a soft blue accent, a tonal navigation
+ * selection) while leaving the light MFMC UI and the classic HMCL theme on
+ * their own stylesheets.
+ */
+
+.mfmcl-root {
+    -mfmcl-bg: #F9FAFB;
+    -mfmcl-surface: #FFFFFF;
+    -mfmcl-surface-muted: #F3F4F6;
+    -mfmcl-border: #E5E7EB;
+    -mfmcl-border-strong: #D1D5DB;
+    -mfmcl-text: #111827;
+    -mfmcl-text-secondary: #4B5563;
+    -mfmcl-text-disabled: #9CA3AF;
+    -mfmcl-primary: #53B4F6;
+    -mfmcl-primary-hover: #49AAEC;
+    -mfmcl-primary-pressed: #3EA1E2;
+    -mfmcl-primary-tonal: #EAF6FE;
+    -mfmcl-primary-tonal-text: #326C94;
+    -mfmcl-primary-text: #3675A0;
+    -mfmcl-on-primary: #0A0E14;
+    -mfmcl-success-bg: #DCFCE7;
+    -mfmcl-success-text: #166534;
+    -mfmcl-shadow: rgba(17, 24, 39, 0.06);
+    -mfmcl-shadow-strong: rgba(17, 24, 39, 0.12);
+
+    -fx-background-color: -mfmcl-bg;
+}
+
+.mfmcl-root.mfmcl-dark {
+    -mfmcl-bg: #0A0E14;
+    -mfmcl-surface: #111827;
+    -mfmcl-surface-muted: #1F2937;
+    -mfmcl-border: #374151;
+    -mfmcl-border-strong: #4B5563;
+    -mfmcl-text: #F9FAFB;
+    -mfmcl-text-secondary: #9CA3AF;
+    -mfmcl-text-disabled: #6B7280;
+    -mfmcl-primary: #53B4F6;
+    -mfmcl-primary-hover: #6BC2FA;
+    -mfmcl-primary-pressed: #49AAEC;
+    -mfmcl-primary-tonal: #253A4E;
+    -mfmcl-primary-tonal-text: #53B4F6;
+    -mfmcl-primary-text: #53B4F6;
+    -mfmcl-success-bg: #14351F;
+    -mfmcl-success-text: #86EFAC;
+    -mfmcl-shadow: rgba(0, 0, 0, 0.4);
+    -mfmcl-shadow-strong: rgba(0, 0, 0, 0.55);
+
+    /* Keep embedded MFMC pages readable when the shell is dark. */
+    -mfmc-bg: #0A0E14;
+    -mfmc-surface: #111827;
+    -mfmc-surface-muted: #1F2937;
+    -mfmc-text: #F9FAFB;
+    -mfmc-text-muted: #9CA3AF;
+    -mfmc-text-faint: #6B7280;
+    -mfmc-border: #374151;
+}
+
+/* Shell */
+
+.mfmcl-shell {
+    -fx-background-color: -mfmcl-bg;
+}
+
+.mfmcl-sidebar {
+    -fx-background-color: -mfmcl-surface;
+    -fx-border-color: transparent -mfmcl-border transparent transparent;
+    -fx-border-width: 0 1 0 0;
+}
+
+.mfmcl-sidebar-header {
+    -fx-padding: 20 20 20 20;
+    -fx-border-color: transparent transparent -mfmcl-border transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.mfmcl-logo {
+    -fx-min-width: 32;
+    -fx-min-height: 32;
+    -fx-pref-width: 32;
+    -fx-pref-height: 32;
+    -fx-max-width: 32;
+    -fx-max-height: 32;
+    -fx-background-color: linear-gradient(to bottom right, #7C3AED, #4F7CFF);
+    -fx-background-radius: 9;
+}
+
+.mfmcl-logo-text {
+    -fx-text-fill: white;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+}
+
+.mfmcl-brand-name {
+    -fx-text-fill: -mfmcl-text;
+    -fx-font-size: 19px;
+    -fx-font-weight: 700;
+}
+
+.mfmcl-nav-list {
+    -fx-padding: 12;
+}
+
+.mfmcl-nav-item {
+    -fx-padding: 10 12 10 12;
+    -fx-background-color: transparent;
+    -fx-background-radius: 10;
+    -fx-border-color: transparent;
+    -fx-border-radius: 10;
+    -fx-border-width: 2;
+    -fx-cursor: hand;
+}
+
+.mfmcl-nav-item:hover {
+    -fx-background-color: -mfmcl-surface-muted;
+}
+
+.mfmcl-nav-item.active {
+    -fx-background-color: -mfmcl-primary-tonal;
+    -fx-border-color: -mfmcl-primary;
+}
+
+.mfmcl-nav-item.active:hover {
+    -fx-background-color: -mfmcl-primary-tonal;
+}
+
+.mfmcl-nav-item .svg {
+    -fx-fill: -mfmcl-text-secondary;
+}
+
+.mfmcl-nav-item:hover .svg {
+    -fx-fill: -mfmcl-text;
+}
+
+.mfmcl-nav-item.active .svg {
+    -fx-fill: -mfmcl-primary-tonal-text;
+}
+
+.mfmcl-nav-text {
+    -fx-text-fill: -mfmcl-text-secondary;
+    -fx-font-size: 15px;
+}
+
+.mfmcl-nav-item:hover .mfmcl-nav-text {
+    -fx-text-fill: -mfmcl-text;
+}
+
+.mfmcl-nav-item.active .mfmcl-nav-text {
+    -fx-text-fill: -mfmcl-primary-tonal-text;
+    -fx-font-weight: 600;
+}
+
+.mfmcl-nav-chevron .svg {
+    -fx-fill: -mfmcl-text-disabled;
+}
+
+.mfmcl-nav-item.active .mfmcl-nav-chevron .svg {
+    -fx-fill: -mfmcl-primary-tonal-text;
+}
+
+.mfmcl-badge {
+    -fx-min-width: 20;
+    -fx-min-height: 20;
+    -fx-pref-height: 20;
+    -fx-padding: 0 6 0 6;
+    -fx-background-color: rgba(0, 0, 0, 0.14);
+    -fx-background-radius: 999;
+    -fx-text-fill: -mfmcl-text-secondary;
+    -fx-font-size: 11px;
+    -fx-font-weight: 600;
+    -fx-alignment: center;
+}
+
+.mfmcl-nav-item.active .mfmcl-badge {
+    -fx-background-color: -mfmcl-surface;
+    -fx-text-fill: -mfmcl-primary-tonal-text;
+}
+
+.mfmcl-badge-accent {
+    -fx-background-color: -mfmcl-primary;
+    -fx-text-fill: -mfmcl-on-primary;
+}
+
+.mfmcl-nav-item.active .mfmcl-badge-accent {
+    -fx-background-color: -mfmcl-primary;
+    -fx-text-fill: -mfmcl-on-primary;
+}
+
+.mfmcl-sidebar-footer {
+    -fx-padding: 12;
+    -fx-border-color: -mfmcl-border transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+
+.mfmcl-avatar {
+    -fx-min-width: 24;
+    -fx-min-height: 24;
+    -fx-pref-width: 24;
+    -fx-pref-height: 24;
+    -fx-max-width: 24;
+    -fx-max-height: 24;
+}
+
+.mfmcl-avatar .svg {
+    -fx-fill: -mfmcl-text-secondary;
+}
+
+.mfmcl-main {
+    -fx-background-color: -mfmcl-bg;
+}
+
+.mfmcl-content {
+    -fx-background-color: -mfmcl-bg;
+}
+
+.mfmcl-window-title {
+    -fx-text-fill: -mfmcl-text;
+    -fx-font-size: 13px;
+    -fx-font-weight: 600;
+}
+
+/* Store menu */
+
+.mfmcl-store-menu {
+    -fx-background-color: -mfmcl-surface;
+    -fx-background-radius: 10;
+    -fx-border-color: -mfmcl-border;
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+    -fx-padding: 6;
+}
+
+.mfmcl-store-menu .menu-item {
+    -fx-padding: 8 12 8 12;
+    -fx-background-radius: 6;
+}
+
+.mfmcl-store-menu .menu-item:focused {
+    -fx-background-color: -mfmcl-primary-tonal;
+}
+
+.mfmcl-store-menu .menu-item .label {
+    -fx-text-fill: -mfmcl-text;
+    -fx-font-size: 13px;
+}
+
+.mfmcl-store-menu .menu-item:focused .label {
+    -fx-text-fill: -mfmcl-primary-tonal-text;
+}
+
+/* Page frame */
+
+.mfmcl-page {
+    -fx-background-color: -mfmcl-bg;
+}
+
+.mfmcl-page-header {
+    -fx-padding: 24 32 24 32;
+    -fx-background-color: -mfmcl-surface;
+    -fx-border-color: transparent transparent -mfmcl-border transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.mfmcl-page-heading {
+    -fx-text-fill: -mfmcl-text;
+    -fx-font-size: 26px;
+    -fx-font-weight: 700;
+}
+
+.mfmcl-page-subheading {
+    -fx-text-fill: -mfmcl-text-secondary;
+    -fx-font-size: 14px;
+}
+
+.mfmcl-page-body {
+    -fx-padding: 32;
+    -fx-background-color: -mfmcl-bg;
+}
+
+.mfmcl-scroll {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.mfmcl-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.mfmcl-scroll .scroll-bar:vertical {
+    -fx-pref-width: 10;
+    -fx-background-color: transparent;
+    -fx-padding: 0 2 0 2;
+}
+
+.mfmcl-scroll .scroll-bar:vertical .track {
+    -fx-background-color: transparent;
+    -fx-fill: transparent;
+}
+
+.mfmcl-scroll .scroll-bar:vertical .thumb {
+    -fx-background-color: -mfmcl-border-strong;
+    -fx-fill: -mfmcl-border-strong;
+    -fx-background-radius: 4;
+    -fx-background-insets: 2 1 2 1;
+    -fx-pref-width: 6;
+}
+
+.mfmcl-scroll .scroll-bar:vertical .increment-button,
+.mfmcl-scroll .scroll-bar:vertical .decrement-button {
+    -fx-pref-height: 0;
+    -fx-opacity: 0;
+}
+
+.mfmcl-scroll .scroll-bar:horizontal {
+    -fx-opacity: 0;
+    -fx-max-height: 0;
+    -fx-min-height: 0;
+    -fx-pref-height: 0;
+}
+
+/* Buttons */
+
+.mfmcl-primary-button {
+    -fx-background-color: -mfmcl-primary;
+    -fx-background-radius: 8;
+    -fx-text-fill: -mfmcl-on-primary;
+    -fx-font-size: 13px;
+    -fx-font-weight: 600;
+    -fx-padding: 8 16 8 16;
+    -fx-graphic-text-gap: 6;
+    -fx-cursor: hand;
+}
+
+.mfmcl-primary-button:hover {
+    -fx-background-color: -mfmcl-primary-hover;
+}
+
+.mfmcl-primary-button:pressed {
+    -fx-background-color: -mfmcl-primary-pressed;
+}
+
+.mfmcl-primary-button .svg {
+    -fx-fill: -mfmcl-on-primary;
+}
+
+.mfmcl-secondary-button {
+    -fx-background-color: -mfmcl-surface;
+    -fx-background-radius: 8;
+    -fx-border-color: -mfmcl-border;
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+    -fx-text-fill: -mfmcl-text;
+    -fx-font-size: 13px;
+    -fx-padding: 8 14 8 14;
+    -fx-graphic-text-gap: 6;
+    -fx-cursor: hand;
+}
+
+.mfmcl-secondary-button:hover {
+    -fx-background-color: -mfmcl-surface-muted;
+}
+
+.mfmcl-secondary-button .svg {
+    -fx-fill: -mfmcl-text-secondary;
+}
+
+.mfmcl-ghost-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: -mfmcl-text-secondary;
+    -fx-font-size: 12px;
+    -fx-padding: 4 8 4 8;
+    -fx-cursor: hand;
+}
+
+.mfmcl-ghost-button:hover {
+    -fx-text-fill: -mfmcl-text;
+    -fx-background-color: -mfmcl-surface-muted;
+    -fx-background-radius: 6;
+}
+
+/* Library */
+
+.mfmcl-instance-grid {
+    -fx-background-color: transparent;
+}
+
+.mfmcl-instance-card {
+    -fx-background-color: -mfmcl-surface;
+    -fx-background-radius: 12;
+    -fx-border-color: -mfmcl-border;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-padding: 20;
+    -fx-effect: dropshadow(gaussian, -mfmcl-shadow, 8, 0, 0, 2);
+}
+
+.mfmcl-instance-card:hover {
+    -fx-border-color: -mfmcl-border-strong;
+    -fx-effect: dropshadow(gaussian, -mfmcl-shadow-strong, 12, 0, 0, 3);
+}
+
+.mfmcl-instance-icon {
+    -fx-background-color: -mfmcl-surface-muted;
+    -fx-background-radius: 8;
+}
+
+.mfmcl-instance-icon .svg {
+    -fx-fill: -mfmcl-text-secondary;
+}
+
+.mfmcl-instance-name {
+    -fx-text-fill: -mfmcl-text;
+    -fx-font-size: 16px;
+    -fx-font-weight: 600;
+}
+
+.mfmcl-instance-meta {
+    -fx-text-fill: -mfmcl-text-secondary;
+    -fx-font-size: 13px;
+}
+
+.mfmcl-instance-location {
+    -fx-text-fill: -mfmcl-text-disabled;
+    -fx-font-size: 11px;
+}
+
+/* Store */
+
+.mfmcl-store-grid {
+    -fx-background-color: transparent;
+}
+
+.mfmcl-category-card {
+    -fx-background-color: -mfmcl-surface;
+    -fx-background-radius: 12;
+    -fx-border-color: -mfmcl-border;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-padding: 20;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, -mfmcl-shadow, 8, 0, 0, 2);
+}
+
+.mfmcl-category-card:hover {
+    -fx-border-color: -mfmcl-primary;
+    -fx-effect: dropshadow(gaussian, -mfmcl-shadow-strong, 12, 0, 0, 3);
+}
+
+.mfmcl-category-icon {
+    -fx-background-color: -mfmcl-primary-tonal;
+    -fx-background-radius: 8;
+}
+
+.mfmcl-category-icon .svg {
+    -fx-fill: -mfmcl-primary-tonal-text;
+}
+
+.mfmcl-category-title {
+    -fx-text-fill: -mfmcl-text;
+    -fx-font-size: 15px;
+    -fx-font-weight: 600;
+}
+
+.mfmcl-category-text {
+    -fx-text-fill: -mfmcl-text-secondary;
+    -fx-font-size: 12px;
+}
+
+.mfmcl-category-open {
+    -fx-text-fill: -mfmcl-primary-text;
+    -fx-font-size: 12px;
+    -fx-font-weight: 600;
+}
+
+/* Panels and rows */
+
+.mfmcl-panel {
+    -fx-background-color: -mfmcl-surface;
+    -fx-background-radius: 12;
+    -fx-border-color: -mfmcl-border;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-padding: 4 20 4 20;
+}
+
+.mfmcl-panel-title {
+    -fx-text-fill: -mfmcl-text;
+    -fx-font-size: 14px;
+    -fx-font-weight: 600;
+    -fx-padding: 14 0 8 0;
+}
+
+.mfmcl-panel-text {
+    -fx-text-fill: -mfmcl-text-secondary;
+    -fx-font-size: 12px;
+    -fx-padding: 0 0 14 0;
+}
+
+.mfmcl-shortcut-row {
+    -fx-padding: 12 0 12 0;
+    -fx-border-color: transparent transparent -mfmcl-border transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.mfmcl-shortcut-row .svg {
+    -fx-fill: -mfmcl-text-secondary;
+}
+
+.mfmcl-shortcut-title {
+    -fx-text-fill: -mfmcl-text;
+    -fx-font-size: 13px;
+    -fx-font-weight: 600;
+}
+
+.mfmcl-shortcut-text {
+    -fx-text-fill: -mfmcl-text-secondary;
+    -fx-font-size: 12px;
+}
+
+.mfmcl-info-row {
+    -fx-padding: 10 0 10 0;
+    -fx-border-color: transparent transparent -mfmcl-border transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.mfmcl-info-key {
+    -fx-text-fill: -mfmcl-text-secondary;
+    -fx-font-size: 12px;
+}
+
+.mfmcl-info-value {
+    -fx-text-fill: -mfmcl-text;
+    -fx-font-size: 12px;
+}
+
+/* Download tasks */
+
+.mfmcl-task-list {
+    -fx-background-color: transparent;
+}
+
+.mfmcl-task-card {
+    -fx-background-color: -mfmcl-surface;
+    -fx-background-radius: 14;
+    -fx-border-color: -mfmcl-border;
+    -fx-border-radius: 14;
+    -fx-border-width: 1;
+    -fx-padding: 24;
+    -fx-effect: dropshadow(gaussian, -mfmcl-shadow, 8, 0, 0, 2);
+}
+
+.mfmcl-task-title {
+    -fx-text-fill: -mfmcl-text;
+    -fx-font-size: 17px;
+    -fx-font-weight: 700;
+}
+
+.mfmcl-task-percent {
+    -fx-text-fill: -mfmcl-text-secondary;
+    -fx-font-size: 14px;
+}
+
+.mfmcl-task-status {
+    -fx-text-fill: -mfmcl-text-secondary;
+    -fx-font-size: 12px;
+}
+
+.mfmcl-task-card .progress-bar {
+    -fx-pref-height: 6;
+    -fx-min-height: 6;
+    -fx-max-height: 6;
+}
+
+.mfmcl-task-card .progress-bar > .track {
+    -fx-background-color: -mfmcl-surface-muted;
+    -fx-background-radius: 3;
+    -fx-background-insets: 0;
+}
+
+.mfmcl-task-card .progress-bar > .bar {
+    -fx-background-color: -mfmcl-primary;
+    -fx-background-radius: 3;
+    -fx-background-insets: 0;
+    -fx-padding: 3;
+}
+
+.mfmcl-file-section {
+    -fx-background-color: transparent;
+}
+
+.mfmcl-file-section-title {
+    -fx-text-fill: -mfmcl-text-secondary;
+    -fx-font-size: 12px;
+    -fx-padding: 0 0 6 0;
+}
+
+.mfmcl-file-row {
+    -fx-background-color: transparent;
+}
+
+.mfmcl-file-title {
+    -fx-text-fill: -mfmcl-text;
+    -fx-font-size: 15px;
+    -fx-font-weight: 600;
+}
+
+.mfmcl-file-detail {
+    -fx-text-fill: -mfmcl-text-secondary;
+    -fx-font-size: 12px;
+}
+
+/* Launcher plugins */
+
+.mfmcl-plugin-grid {
+    -fx-background-color: transparent;
+}
+
+.mfmcl-plugin-card {
+    -fx-background-color: -mfmcl-surface;
+    -fx-background-radius: 12;
+    -fx-border-color: -mfmcl-border;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-padding: 18;
+}
+
+.mfmcl-plugin-icon {
+    -fx-background-color: -mfmcl-primary-tonal;
+    -fx-background-radius: 8;
+}
+
+.mfmcl-plugin-icon .svg {
+    -fx-fill: -mfmcl-primary-tonal-text;
+}
+
+.mfmcl-plugin-title {
+    -fx-text-fill: -mfmcl-text;
+    -fx-font-size: 14px;
+    -fx-font-weight: 600;
+}
+
+.mfmcl-plugin-status {
+    -fx-background-color: -mfmcl-success-bg;
+    -fx-background-radius: 999;
+    -fx-text-fill: -mfmcl-success-text;
+    -fx-font-size: 11px;
+    -fx-padding: 2 8 2 8;
+}
+
+.mfmcl-plugin-text {
+    -fx-text-fill: -mfmcl-text-secondary;
+    -fx-font-size: 12px;
+}
+
+/* Empty states */
+
+.mfmcl-empty-state {
+    -fx-padding: 56 24 56 24;
+    -fx-alignment: center;
+}
+
+.mfmcl-empty-state .svg {
+    -fx-fill: -mfmcl-text-disabled;
+}
+
+.mfmcl-empty-title {
+    -fx-text-fill: -mfmcl-text;
+    -fx-font-size: 20px;
+    -fx-font-weight: 600;
+}
+
+.mfmcl-empty-text {
+    -fx-text-fill: -mfmcl-text-secondary;
+    -fx-font-size: 13px;
+}
+
+/* Embedded category pages */
+
+.mfmcl-embedded-page {
+    -fx-background-color: -mfmcl-bg;
+}
+
+.mfmcl-subpage-bar {
+    -fx-padding: 12 24 12 24;
+    -fx-background-color: -mfmcl-surface;
+    -fx-border-color: transparent transparent -mfmcl-border transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.mfmcl-subpage-heading {
+    -fx-text-fill: -mfmcl-text;
+    -fx-font-size: 15px;
+    -fx-font-weight: 600;
+}
+
+.mfmcl-back-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: -mfmcl-text-secondary;
+    -fx-font-size: 12px;
+    -fx-padding: 4 8 4 4;
+    -fx-graphic-text-gap: 6;
+    -fx-cursor: hand;
+}
+
+.mfmcl-back-button:hover {
+    -fx-text-fill: -mfmcl-text;
+}
+
+.mfmcl-back-button .svg {
+    -fx-fill: -mfmcl-text-secondary;
+}

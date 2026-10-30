@@ -45,8 +45,16 @@ import org.jetbrains.annotations.NotNullByDefault;
 /// launcher: Java management, version isolation, and local about information.
 @NotNullByDefault
 public final class MfmcSettingsPage extends VBox {
-    /// Creates the settings tab.
+    /// Creates the settings tab with its own title.
     public MfmcSettingsPage() {
+        this(true);
+    }
+
+    /// Creates the settings tab.
+    ///
+    /// @param showTitle whether to render the local "设置" heading; embedded
+    ///                  workspaces supply their own page header
+    public MfmcSettingsPage(boolean showTitle) {
         getStyleClass().add("mfmc-card");
         setPadding(new Insets(16));
         setSpacing(12);
@@ -113,7 +121,7 @@ public final class MfmcSettingsPage extends VBox {
             }
         }
 
-        getChildren().setAll(title, tabs, content);
+        getChildren().setAll(showTitle ? new Node[]{title, tabs, content} : new Node[]{tabs, content});
     }
 
     /// Creates a settings sub-tab.
