@@ -79,6 +79,16 @@
     -mfmc-border: #374151;
 }
 
+/* Embedded MFMC surfaces must stay effect-free while they scroll.
+   A blurred shadow forces Prism onto the slow background path on every pulse,
+   which is what makes the settings page stutter while wheeling. */
+.mfmcl-shell .mfmc-card,
+.mfmcl-shell .mfmc-topbar,
+.mfmcl-shell .mfmc-account-menu,
+.mfmcl-shell .mfmc-launch-button {
+    -fx-effect: null;
+}
+
 /* Shell */
 
 .mfmcl-shell {

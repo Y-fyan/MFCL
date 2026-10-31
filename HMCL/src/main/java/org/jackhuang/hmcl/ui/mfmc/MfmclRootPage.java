@@ -411,18 +411,26 @@ public final class MfmclRootPage extends StackPane implements DecoratorPage {
     }
 
     /// Shows the settings page.
+    ///
+    /// The embedded settings content owns its own scrolling (the Java list and
+    /// the version-isolation page are both scrollable controls). Wrapping them
+    /// in a second scroll pane made every wheel step repaint the whole card,
+    /// which is what caused the visible stutter on this page.
     public void showSettings() {
         VBox page = new VBox();
         page.getStyleClass().add("mfmcl-page");
 
         Node body = settingsPage.get();
+        body.setCache(false);
         VBox bodyBox = new VBox(body);
         bodyBox.getStyleClass().add("mfmcl-page-body");
+        bodyBox.setMinHeight(0);
         VBox.setVgrow(body, Priority.ALWAYS);
 
         page.getChildren().setAll(
                 MfmclUi.header("设置", "管理 Java 运行环境、版本隔离与启动器信息。"),
-                MfmclUi.scroll(bodyBox));
+                bodyBox);
+        VBox.setVgrow(bodyBox, Priority.ALWAYS);
         showPage(page, settingsNav);
     }
 
