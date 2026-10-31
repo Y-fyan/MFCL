@@ -24,6 +24,7 @@ import javafx.geometry.Pos;
 import javafx.geometry.Side;
 import javafx.scene.Node;
 import javafx.scene.canvas.Canvas;
+import javafx.scene.image.ImageView;
 import javafx.scene.control.Button;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
@@ -249,9 +250,12 @@ public final class MfmclRootPage extends StackPane implements DecoratorPage {
         sidebar.setMinWidth(240);
         sidebar.setMaxWidth(240);
 
-        Label logoText = new Label("MFL");
-        logoText.getStyleClass().add("mfmcl-logo-text");
-        StackPane logo = new StackPane(logoText);
+        ImageView logoImage = new ImageView(FXUtils.newBuiltinImage("/assets/img/icon-mfmc.png"));
+        logoImage.setFitWidth(36);
+        logoImage.setFitHeight(36);
+        logoImage.setPreserveRatio(true);
+        logoImage.setSmooth(true);
+        StackPane logo = new StackPane(logoImage);
         logo.getStyleClass().add("mfmcl-logo");
 
         Label brandName = new Label("MFMC Launcher");

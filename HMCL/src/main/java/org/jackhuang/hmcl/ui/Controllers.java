@@ -59,7 +59,6 @@ import org.jackhuang.hmcl.ui.decorator.Decorator;
 import org.jackhuang.hmcl.ui.download.DownloadPage;
 import org.jackhuang.hmcl.ui.main.LauncherSettingsPage;
 import org.jackhuang.hmcl.ui.main.RootPage;
-import org.jackhuang.hmcl.ui.mfmc.MfmcRootPage;
 import org.jackhuang.hmcl.ui.mfmc.MfmclRootPage;
 import org.jackhuang.hmcl.ui.mfmc.MfmclTaskCenter;
 import org.jackhuang.hmcl.ui.mfmc.MfmcUiMode;
@@ -68,7 +67,6 @@ import org.jackhuang.hmcl.ui.instances.GameListPage;
 import org.jackhuang.hmcl.ui.instances.GameInstancePage;
 import org.jackhuang.hmcl.ui.instances.Instances;
 import org.jackhuang.hmcl.upgrade.IntegrityChecker;
-import org.jackhuang.hmcl.upgrade.UpdateChecker;
 import org.jackhuang.hmcl.util.*;
 import org.jackhuang.hmcl.util.i18n.I18n;
 import org.jackhuang.hmcl.util.i18n.SupportedLocale;
@@ -288,20 +286,9 @@ public final class Controllers {
 
         configureMainStage(stage);
 
-        boolean mfmcUi = MfmcUiMode.isEnabled();
-        Node mainPage = mfmcUi
-                ? (MfmcUiMode.isMfmcl() ? new MfmclRootPage() : new MfmcRootPage())
-                : getRootPage();
-        decorator = new Decorator(mainPage, Controllers::configureMainStage);
+        // MFCL ships a single interface: the MFMCL sidebar workspace.
+        decorator = new Decorator(new MfmclRootPage(), Controllers::configureMainStage);
         Scene mainScene = decorator.attachStage(stage);
-        if (!mfmcUi) {
-            getRootPage().getMainPage().showUpdateProperty().bind(UpdateChecker.checkingUpdateProperty().not().and(UpdateChecker.outdatedProperty()));
-            getRootPage().getMainPage().showUpdateDialogProperty().bind(
-                    decorator.backableProperty().not()
-                            .and(getRootPage().getMainPage().showUpdateProperty())
-                            .and(settings().disableAutoShowUpdateDialogProperty().not())
-            );
-        }
 
         if (settings().commonDirectoryTypeProperty().get() == EnumCommonDirectory.CUSTOM &&
                 !FileUtils.canCreateDirectory(settings().getResolvedCommonDirectory())) {

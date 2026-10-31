@@ -73,7 +73,6 @@ import org.jackhuang.hmcl.ui.construct.MenuSeparator;
 import org.jackhuang.hmcl.ui.construct.PopupMenu;
 import org.jackhuang.hmcl.ui.image.ImageLoader;
 import org.jackhuang.hmcl.ui.image.ImageUtils;
-import org.jackhuang.hmcl.ui.mfmc.MfmcUiMode;
 import org.jackhuang.hmcl.util.FXThread;
 import org.jackhuang.hmcl.util.Lang;
 import org.jackhuang.hmcl.util.Pair;
@@ -880,18 +879,9 @@ public final class FXUtils {
     }
 
     public static void setIcon(Stage stage) {
-        String icon;
-        if (MfmcUiMode.isEnabled()) {
-            icon = OperatingSystem.CURRENT_OS == OperatingSystem.MACOS
-                    ? "/assets/img/icon-mfmc-mac.png"
-                    : "/assets/img/icon-mfmc.png";
-        } else if (OperatingSystem.CURRENT_OS == OperatingSystem.WINDOWS) {
-            icon = "/assets/img/icon.png";
-        } else if (OperatingSystem.CURRENT_OS == OperatingSystem.MACOS) {
-            icon = "/assets/img/icon-mac.png";
-        } else {
-            icon = "/assets/img/icon@4x.png";
-        }
+        String icon = OperatingSystem.CURRENT_OS == OperatingSystem.MACOS
+                ? "/assets/img/icon-mfmc-mac.png"
+                : "/assets/img/icon-mfmc.png";
         stage.getIcons().add(newBuiltinImage(icon));
     }
 

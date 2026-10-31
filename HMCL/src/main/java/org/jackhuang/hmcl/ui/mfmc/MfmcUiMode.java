@@ -17,39 +17,30 @@
  */
 package org.jackhuang.hmcl.ui.mfmc;
 
-import org.jackhuang.hmcl.util.io.JarUtils;
 import org.jetbrains.annotations.NotNullByDefault;
 
-/// Selects the MFMC launcher UI while leaving the classic HMCL UI untouched.
+/// Identifies the launcher interface shipped by MFCL.
 ///
-/// The UI can be selected at runtime with `-Dhmcl.ui=mfmc` or baked into the
-/// artifact through the `hmcl.ui` property in `assets/hmcl.properties`.
+/// MFCL exposes exactly one interface: the MFMCL sidebar workspace. The
+/// classic HMCL pages and the earlier MFMC top-tab pages still exist in the
+/// code base, but only as building blocks embedded inside MFMCL — they can no
+/// longer be selected at runtime or through a build property.
 @NotNullByDefault
 public final class MfmcUiMode {
-    /// The system property or jar attribute used to select the launcher UI.
-    public static final String PROPERTY = "hmcl.ui";
-
-    /// The value that enables the MFMC top-tab UI.
-    public static final String MFMC = "mfmc";
-
-    /// The value that enables the MFMCL sidebar UI.
-    public static final String MFMCL = "mfmcl";
-
-    /// Returns whether an MFMC-family UI is selected.
-    ///
-    /// @return `true` when the classic root page should be replaced
-    public static boolean isEnabled() {
-        String value = System.getProperty(PROPERTY, JarUtils.getAttribute(PROPERTY, ""));
-        return MFMC.equalsIgnoreCase(value) || MFMCL.equalsIgnoreCase(value);
-    }
-
-    /// Returns whether the MFMCL sidebar UI is selected.
-    ///
-    /// @return `true` for the MFMCL shell
-    public static boolean isMfmcl() {
-        return MFMCL.equalsIgnoreCase(System.getProperty(PROPERTY, JarUtils.getAttribute(PROPERTY, "")));
-    }
-
     private MfmcUiMode() {
+    }
+
+    /// Returns whether the MFMCL workspace owns the main window.
+    ///
+    /// @return always `true`
+    public static boolean isEnabled() {
+        return true;
+    }
+
+    /// Returns whether the active interface is the MFMCL workspace.
+    ///
+    /// @return always `true`
+    public static boolean isMfmcl() {
+        return true;
     }
 }

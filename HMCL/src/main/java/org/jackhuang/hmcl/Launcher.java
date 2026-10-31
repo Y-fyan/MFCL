@@ -43,7 +43,6 @@ import org.jackhuang.hmcl.ui.FXUtils;
 import org.jackhuang.hmcl.ui.animation.AnimationUtils;
 import org.jackhuang.hmcl.ui.mfmc.MfmcUiMode;
 import org.jackhuang.hmcl.ui.mfmc.WindowsGpuPreference;
-import org.jackhuang.hmcl.upgrade.UpdateChecker;
 import org.jackhuang.hmcl.upgrade.UpdateHandler;
 import org.jackhuang.hmcl.util.*;
 import org.jackhuang.hmcl.util.io.FileUtils;
@@ -157,9 +156,8 @@ public final class Launcher extends Application {
                 Controllers.initialize(primaryStage);
 
                 RegionUtils.init();
-                if (!MfmcUiMode.isEnabled()) {
-                    UpdateChecker.init();
-                }
+                // MFCL ships the MFMCL workspace only, so the upstream HMCL
+                // update check is never started.
 
                 primaryStage.show();
             });

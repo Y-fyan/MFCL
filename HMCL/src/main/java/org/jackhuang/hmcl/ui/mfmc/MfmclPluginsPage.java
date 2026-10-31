@@ -50,9 +50,7 @@ public final class MfmclPluginsPage extends VBox {
                 pluginCard("Modrinth 内容", "搜索并安装模组、整合包、资源包与光影。",
                         SVG.EXTENSION),
                 pluginCard("整合包导入", "从本地 .zip 或 .mrpack 文件导入为新的实例。",
-                        SVG.ARCHIVE),
-                pluginCard("启动器更新", "检查新版本并在启动器内完成升级。",
-                        SVG.UPDATE)
+                        SVG.ARCHIVE)
         };
 
         GridPane grid = new GridPane();
