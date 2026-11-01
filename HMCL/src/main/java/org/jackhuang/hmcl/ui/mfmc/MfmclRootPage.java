@@ -17,26 +17,29 @@
  */
 package org.jackhuang.hmcl.ui.mfmc;
 
+import javafx.animation.PauseTransition;
 import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.beans.value.ObservableValue;
+import javafx.event.EventHandler;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.geometry.Side;
 import javafx.scene.Node;
+import javafx.scene.Parent;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.image.ImageView;
 import javafx.scene.control.Button;
-import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
-import javafx.scene.control.MenuItem;
-import javafx.scene.control.SeparatorMenuItem;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.shape.Circle;
+import javafx.util.Duration;
 import org.jackhuang.hmcl.auth.Account;
 import org.jackhuang.hmcl.download.game.GameRemoteVersion;
 import org.jackhuang.hmcl.game.HMCLGameInstance;
@@ -112,6 +115,18 @@ public final class MfmclRootPage extends StackPane implements DecoratorPage {
     private final NavItem loginNav;
     private final NavItem settingsNav;
 
+    /// The inline category dropdown shown under the content-store entry.
+    private final VBox storeMenu = new VBox(2);
+
+    /// The chevron on the content-store entry, rotated while the dropdown is open.
+    private Node storeChevron;
+
+    /// Scrolls the sidebar when the inline store dropdown exceeds the window.
+    private ScrollPane navScroll;
+
+    /// Closes the inline store dropdown when the user clicks elsewhere.
+    private @Nullable EventHandler<MouseEvent> storeMenuOutsideClick;
+
     /// The instance count badge on the library entry.
     private final Label libraryBadge = new Label();
 
@@ -156,11 +171,25 @@ public final class MfmclRootPage extends StackPane implements DecoratorPage {
 
         libraryNav = navItem(SVG.PACKAGE2.createIcon(20), "游戏库", this::showLibrary, libraryBadge, null);
         storeNav = navItem(SVG.PACKAGE.createIcon(20), "内容商店", this::toggleStoreMenu, null, SVG.ARROW_DROP_DOWN);
+        storeChevron = storeNav.trailing.getChildren().get(storeNav.trailing.getChildren().size() - 1);
         downloadsNav = navItem(SVG.DOWNLOAD.createIcon(20), "下载任务", this::showDownloads, downloadsBadge, null);
         pluginsNav = navItem(SVG.EXTENSION.createIcon(20), "启动器插件", this::showPlugins, null, null);
         themeNav = navItem(SVG.MOON.createIcon(20), "深色", this::toggleTheme, null, null);
         loginNav = navItem(createAccountLeading(), "登录", this::showAccounts, null, null);
         settingsNav = navItem(SVG.SETTINGS.createIcon(20), "设置", this::showSettings, null, null);
+
+        storeMenu.getStyleClass().add("mfmcl-store-submenu");
+        storeMenu.getChildren().setAll(
+                storeMenuItem("内容商店", this::showStore),
+                storeMenuItem("游戏版本", () -> showDownloadCategory(DownloadPage.Category.GAME)),
+                storeMenuItem("整合包", () -> showDownloadCategory(DownloadPage.Category.MODPACK)),
+                storeMenuItem("模组", () -> showDownloadCategory(DownloadPage.Category.MOD)),
+                storeMenuItem("资源包", () -> showDownloadCategory(DownloadPage.Category.RESOURCE_PACK)),
+                storeMenuItem("光影", () -> showDownloadCategory(DownloadPage.Category.SHADER)),
+                storeMenuItem("世界", () -> showDownloadCategory(DownloadPage.Category.WORLD)));
+        storeMenu.setVisible(false);
+        storeMenu.setManaged(false);
+        VBox.setMargin(storeMenu, new Insets(0, 0, 0, 32));
 
         libraryBadge.getStyleClass().add("mfmcl-badge");
         downloadsBadge.getStyleClass().addAll("mfmcl-badge", "mfmcl-badge-accent");
@@ -265,16 +294,22 @@ public final class MfmclRootPage extends StackPane implements DecoratorPage {
         brand.setAlignment(Pos.CENTER_LEFT);
         brand.getStyleClass().add("mfmcl-sidebar-header");
 
-        VBox nav = new VBox(4, libraryNav.node, storeNav.node, downloadsNav.node, pluginsNav.node);
+        VBox nav = new VBox(4, libraryNav.node, storeNav.node, storeMenu,
+                downloadsNav.node, pluginsNav.node);
         nav.getStyleClass().add("mfmcl-nav-list");
 
-        Region spacer = new Region();
-        VBox.setVgrow(spacer, Priority.ALWAYS);
+        navScroll = new ScrollPane(nav);
+        navScroll.getStyleClass().add("mfmcl-nav-scroll");
+        navScroll.setFitToWidth(true);
+        navScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        navScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        navScroll.setMinHeight(0);
+        VBox.setVgrow(navScroll, Priority.ALWAYS);
 
         VBox footer = new VBox(4, themeNav.node, loginNav.node, settingsNav.node);
         footer.getStyleClass().add("mfmcl-sidebar-footer");
 
-        sidebar.getChildren().setAll(brand, nav, spacer, footer);
+        sidebar.getChildren().setAll(brand, navScroll, footer);
         return sidebar;
     }
 
@@ -318,30 +353,105 @@ public final class MfmclRootPage extends StackPane implements DecoratorPage {
         return frame;
     }
 
-    /// Shows the category menu attached to the store entry.
+    /// Toggles the inline category dropdown attached to the store entry.
     private void toggleStoreMenu() {
-        ContextMenu menu = new ContextMenu();
-        menu.getStyleClass().add("mfmcl-store-menu");
-
-        MenuItem landing = new MenuItem("内容商店");
-        landing.setOnAction(event -> showStore());
-        menu.getItems().addAll(landing, new SeparatorMenuItem());
-
-        addStoreCategory(menu, "游戏版本", DownloadPage.Category.GAME);
-        addStoreCategory(menu, "整合包", DownloadPage.Category.MODPACK);
-        addStoreCategory(menu, "模组", DownloadPage.Category.MOD);
-        addStoreCategory(menu, "资源包", DownloadPage.Category.RESOURCE_PACK);
-        addStoreCategory(menu, "光影", DownloadPage.Category.SHADER);
-        addStoreCategory(menu, "世界", DownloadPage.Category.WORLD);
-
-        menu.show(storeNav.node, Side.BOTTOM, 0, 6);
+        setStoreMenuOpen(!storeMenu.isVisible());
     }
 
-    /// Adds one category entry to the store menu.
-    private void addStoreCategory(ContextMenu menu, String text, DownloadPage.Category category) {
-        MenuItem item = new MenuItem(text);
-        item.setOnAction(event -> showDownloadCategory(category));
-        menu.getItems().add(item);
+    /// Shows or hides the inline store dropdown.
+    private void setStoreMenuOpen(boolean open) {
+        storeMenu.setVisible(open);
+        storeMenu.setManaged(open);
+        if (storeChevron != null) {
+            storeChevron.setRotate(open ? 180 : 0);
+        }
+
+        scrollStoreMenuIntoView(open);
+
+        if (open && storeMenuOutsideClick == null && getScene() != null) {
+            storeMenuOutsideClick = event -> {
+                Node target = event.getTarget() instanceof Node node ? node : null;
+                if (target != null
+                        && !isInside(storeMenu, target)
+                        && !isInside(storeNav.node, target)) {
+                    setStoreMenuOpen(false);
+                }
+            };
+            getScene().addEventFilter(MouseEvent.MOUSE_PRESSED, storeMenuOutsideClick);
+        } else if (!open && storeMenuOutsideClick != null) {
+            if (getScene() != null) {
+                getScene().removeEventFilter(MouseEvent.MOUSE_PRESSED, storeMenuOutsideClick);
+            }
+            storeMenuOutsideClick = null;
+        }
+    }
+
+    /// Keeps the opened dropdown visible inside the scrollable sidebar.
+    private void scrollStoreMenuIntoView(boolean open) {
+        if (navScroll == null) {
+            return;
+        }
+
+        double delayMillis = navScroll.getScene() == null ? 500 : 80;
+        PauseTransition delay = new PauseTransition(Duration.millis(delayMillis));
+        delay.setOnFinished(event -> {
+            if (navScroll == null) {
+                return;
+            }
+            if (!open) {
+                navScroll.setVvalue(0);
+                return;
+            }
+
+            navScroll.applyCss();
+            navScroll.layout();
+            Node content = navScroll.getContent();
+            if (content instanceof Parent parent) {
+                parent.applyCss();
+                parent.layout();
+            }
+
+            double contentHeight = content.getBoundsInLocal().getHeight();
+            double viewportHeight = navScroll.getViewportBounds().getHeight();
+            if (contentHeight <= viewportHeight) {
+                return;
+            }
+
+            double menuBottom = storeMenu.localToParent(storeMenu.getBoundsInLocal()).getMaxY();
+            double target = (menuBottom - viewportHeight) / (contentHeight - viewportHeight);
+            navScroll.setVvalue(Math.max(0, Math.min(1, target)));
+        });
+        delay.play();
+    }
+
+    /// Returns whether `node` is `ancestor` or one of its descendants.
+    private static boolean isInside(Node ancestor, Node node) {
+        for (Node current = node; current != null; current = current.getParent()) {
+            if (current == ancestor) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// Creates one row inside the store dropdown.
+    private HBox storeMenuItem(String text, Runnable action) {
+        Label label = new Label(text);
+        label.getStyleClass().add("mfmcl-submenu-text");
+
+        HBox row = new HBox(label);
+        row.getStyleClass().add("mfmcl-submenu-item");
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setFocusTraversable(true);
+        row.setCursor(javafx.scene.Cursor.HAND);
+        row.setOnMouseClicked(event -> action.run());
+        row.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.ENTER || event.getCode() == KeyCode.SPACE) {
+                action.run();
+                event.consume();
+            }
+        });
+        return row;
     }
 
     /// Toggles the MFMCL dark palette.
@@ -379,6 +489,9 @@ public final class MfmclRootPage extends StackPane implements DecoratorPage {
 
     /// Replaces the page viewport.
     private void showPage(Node page, @Nullable NavItem nav) {
+        if (nav != storeNav) {
+            setStoreMenuOpen(false);
+        }
         content.getChildren().setAll(page);
         selectNav(nav);
         MfmcMotion.enter(page);

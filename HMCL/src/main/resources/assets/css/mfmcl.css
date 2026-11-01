@@ -128,6 +128,42 @@
     -fx-padding: 12;
 }
 
+.mfmcl-nav-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-padding: 0;
+}
+
+.mfmcl-nav-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.mfmcl-nav-scroll .scroll-bar:vertical {
+    -fx-pref-width: 6;
+    -fx-background-color: transparent;
+}
+
+.mfmcl-nav-scroll .scroll-bar:vertical .track {
+    -fx-background-color: transparent;
+}
+
+.mfmcl-nav-scroll .scroll-bar:vertical .thumb {
+    -fx-background-color: -mfmcl-border-strong;
+    -fx-background-radius: 999;
+}
+
+.mfmcl-nav-scroll .scroll-bar .increment-button,
+.mfmcl-nav-scroll .scroll-bar .decrement-button {
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+}
+
+.mfmcl-nav-scroll .scroll-bar .increment-arrow,
+.mfmcl-nav-scroll .scroll-bar .decrement-arrow {
+    -fx-shape: "";
+    -fx-padding: 0;
+}
+
 .mfmcl-nav-item {
     -fx-padding: 10 12 10 12;
     -fx-background-color: transparent;
@@ -246,33 +282,41 @@
     -fx-font-weight: 600;
 }
 
-/* Store menu */
+/* Store dropdown (inline, under the sidebar entry) */
 
-.mfmcl-store-menu {
-    -fx-background-color: -mfmcl-surface;
-    -fx-background-radius: 10;
-    -fx-border-color: -mfmcl-border;
-    -fx-border-radius: 10;
-    -fx-border-width: 1;
-    -fx-padding: 6;
+.mfmcl-store-submenu {
+    -fx-border-color: transparent transparent transparent -mfmcl-border;
+    -fx-border-width: 0 0 0 1;
+    -fx-padding: 2 0 2 0;
 }
 
-.mfmcl-store-menu .menu-item {
-    -fx-padding: 8 12 8 12;
-    -fx-background-radius: 6;
+.mfmcl-submenu-item {
+    -fx-padding: 6 10 6 10;
+    -fx-background-color: transparent;
+    -fx-background-radius: 8;
+    -fx-cursor: hand;
 }
 
-.mfmcl-store-menu .menu-item:focused {
+.mfmcl-submenu-item:hover {
+    -fx-background-color: -mfmcl-surface-muted;
+}
+
+.mfmcl-submenu-item:focused {
     -fx-background-color: -mfmcl-primary-tonal;
 }
 
-.mfmcl-store-menu .menu-item .label {
-    -fx-text-fill: -mfmcl-text;
-    -fx-font-size: 13px;
+.mfmcl-submenu-text {
+    -fx-text-fill: -mfmcl-text-secondary;
+    -fx-font-size: 14px;
 }
 
-.mfmcl-store-menu .menu-item:focused .label {
+.mfmcl-submenu-item:hover .mfmcl-submenu-text {
+    -fx-text-fill: -mfmcl-text;
+}
+
+.mfmcl-submenu-item:focused .mfmcl-submenu-text {
     -fx-text-fill: -mfmcl-primary-tonal-text;
+    -fx-font-weight: 600;
 }
 
 /* Page frame */
