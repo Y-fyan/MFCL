@@ -19,6 +19,10 @@ package org.jackhuang.hmcl.game;
 
 import org.jetbrains.annotations.NotNullByDefault;
 import org.jetbrains.annotations.Nullable;
+import org.jackhuang.hmcl.nativebridge.NativeBackend;
+
+import java.io.IOException;
+import java.nio.file.Path;
 
 import java.util.*;
 
@@ -165,6 +169,26 @@ public class DefaultGameRepositorySnapshot implements GameRepositorySnapshot {
     void removeInvalidInstances() {
         checkMutable();
 
+        @Nullable String executable = System.getProperty("mfcl.native.path");
+        if (executable != null && !executable.isBlank()
+                && Boolean.parseBoolean(System.getProperty("mfcl.native.instances.enabled", "true"))
+                && instances.values().stream().allMatch(instance -> instance.getId().equals(instance.getManifest().id()))
+                && instances.values().stream().anyMatch(instance -> instance.getManifest().inheritsFrom() != null)) {
+            try {
+                Set<GameInstanceID> invalid = NativeBackend.findInvalidInheritance(Path.of(executable),
+                        instances.values().stream().map(DefaultGameInstance::getManifest).toList());
+                for (GameInstanceID id : invalid) {
+                    LOG.warning("Instance " + id + " has a missing inheritance ancestor");
+                    instances.remove(id);
+                }
+                return;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (IOException | RuntimeException e) {
+                LOG.warning("Native inheritance check failed; using Java validation");
+            }
+        }
+
         HashSet<GameInstanceID> visited = null;
         loop:
         for (DefaultGameInstance instance : List.copyOf(instances.values())) {
@@ -219,7 +243,66 @@ public class DefaultGameRepositorySnapshot implements GameRepositorySnapshot {
     }
 
     public GameInstanceManifest resolve(GameInstanceManifest manifest) throws NoSuchGameInstanceException {
+        @Nullable String executable = System.getProperty("mfcl.native.path");
+        if (manifest.inheritsFrom() != null && executable != null && !executable.isBlank()
+                && Boolean.parseBoolean(System.getProperty("mfcl.native.instances.enabled", "true"))
+                && instances.values().stream().allMatch(instance -> instance.getId().equals(instance.getManifest().id()))) {
+            try {
+                var plan = NativeBackend.planInheritance(Path.of(executable), manifest,
+                        instances.values().stream().map(DefaultGameInstance::getManifest).toList());
+                return resolvePlannedInheritance(manifest, plan);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (IOException | RuntimeException e) {
+                LOG.warning("Native inheritance planning failed; using Java resolution");
+            }
+        }
         return resolve(manifest, new HashSet<>());
+    }
+
+    /// Validates a native chain against the snapshot and applies the original manifest merges.
+    /// @param start manifest being resolved
+    /// @param plan native inheritance chain
+    /// @return resolved manifest
+    /// @throws IOException if the plan does not match the snapshot
+    private GameInstanceManifest resolvePlannedInheritance(GameInstanceManifest start, NativeBackend.InheritancePlan plan) throws IOException {
+        List<GameInstanceManifest> chain = new ArrayList<>();
+        Set<GameInstanceID> visited = new HashSet<>();
+        GameInstanceManifest current = start;
+        for (int i = 0; i < plan.chain().size(); i++) {
+            if (!current.id().equals(plan.chain().get(i))) throw new IOException("Invalid native inheritance chain");
+            chain.add(current);
+            boolean last = i == plan.chain().size() - 1;
+            @Nullable GameInstanceID parent = current.inheritsFrom();
+            if (parent == null) {
+                if (!last || plan.cycle()) throw new IOException("Invalid native inheritance termination");
+                break;
+            }
+            if (!visited.add(current.id())) {
+                if (!last || !plan.cycle()) throw new IOException("Invalid native inheritance cycle");
+                break;
+            }
+            if (last || !parent.equals(plan.chain().get(i + 1))) throw new IOException("Invalid native inheritance parent");
+            @Nullable DefaultGameInstance next = instances.get(parent);
+            if (next == null) throw new IOException("Missing native inheritance parent");
+            current = next.getManifest();
+        }
+        GameInstanceManifest terminal = chain.get(chain.size() - 1);
+        GameInstanceManifest resolved;
+        if (plan.cycle()) {
+            LOG.warning("Found circular dependency instances: " + visited);
+            resolved = (terminal.jar() == null ? terminal.withJar(terminal.id()) : terminal).withInheritsFrom(null);
+        } else {
+            resolved = terminal.isRoot() && terminal.patches() != null
+                    ? new GameInstanceManifest(terminal.id()).withPatches(terminal.patches()) : terminal;
+            resolved = resolved.withJar(terminal.jar() == null ? terminal.id() : terminal.jar());
+        }
+        resolved = applyManifestPatches(terminal, resolved);
+        for (int i = chain.size() - 2; i >= 0; i--) {
+            GameInstanceManifest child = chain.get(i);
+            resolved = applyManifestPatches(child, child.merge(resolved));
+        }
+        return resolved;
     }
 
     /// Resolves official-layout inheritance and patches without launch-library deduplication.
@@ -264,6 +347,25 @@ public class DefaultGameRepositorySnapshot implements GameRepositorySnapshot {
             }
         }
 
+        return applyManifestPatches(manifest, resolvedManifest);
+    }
+
+    /// Applies this manifest's stable-priority patches to a resolved intermediate result.
+    /// @param manifest source manifest
+    /// @param resolvedManifest inherited intermediate manifest
+    /// @return final manifest for this step
+    private GameInstanceManifest applyManifestPatches(GameInstanceManifest manifest, GameInstanceManifest resolvedManifest) {
+        @Nullable String executable = System.getProperty("mfcl.native.path");
+        if (manifest.patches() != null && !manifest.patches().isEmpty() && executable != null && !executable.isBlank()
+                && Boolean.parseBoolean(System.getProperty("mfcl.native.instances.enabled", "true"))) {
+            try {
+                return NativeManifestMerge.applyPatches(Path.of(executable), manifest, resolvedManifest);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (IOException | RuntimeException e) {
+                LOG.warning("Native manifest patch application failed; using Java merge");
+            }
+        }
         var builder = new GameInstanceManifest.Builder(resolvedManifest);
 
         if (manifest.patches() != null && !manifest.patches().isEmpty()) {

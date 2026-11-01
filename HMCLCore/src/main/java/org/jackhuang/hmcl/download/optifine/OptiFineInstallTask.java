@@ -19,6 +19,7 @@ package org.jackhuang.hmcl.download.optifine;
 
 import org.jackhuang.hmcl.download.*;
 import org.jackhuang.hmcl.download.game.GameDownloadTask;
+import org.jackhuang.hmcl.download.forge.NativeForgeProfiles;
 import org.jackhuang.hmcl.game.*;
 import org.jackhuang.hmcl.task.FileDownloadTask;
 import org.jackhuang.hmcl.task.Task;
@@ -26,7 +27,8 @@ import org.jackhuang.hmcl.util.io.CompressingUtils;
 import org.jackhuang.hmcl.util.io.FileUtils;
 import org.jackhuang.hmcl.util.platform.CommandBuilder;
 import org.jackhuang.hmcl.java.JavaRuntime;
-import org.jackhuang.hmcl.util.platform.SystemUtils;
+import org.jackhuang.hmcl.nativebridge.NativeProcessorRunner;
+import org.jackhuang.hmcl.nativebridge.NativeBackend;
 import org.jackhuang.hmcl.util.versioning.GameVersionNumber;
 import org.jackhuang.hmcl.util.versioning.VersionNumber;
 import org.jenkinsci.constant_pool_scanner.ConstantPool;
@@ -143,9 +145,10 @@ public final class OptiFineInstallTask extends Task<GameInstancePatch> {
         return dependencies;
     }
 
+    /// Installation succeeds only after all required OptiFine libraries are available.
     @Override
     public boolean isRelyingOnDependencies() {
-        return false;
+        return true;
     }
 
     @Override
@@ -171,8 +174,9 @@ public final class OptiFineInstallTask extends Task<GameInstancePatch> {
         // Install launch wrapper modified by OptiFine
         boolean hasLaunchWrapper = false;
         try (FileSystem fs = CompressingUtils.createReadOnlyZipFileSystem(installerFile)) {
+            @Nullable NativeBackend.OptifinePlan nativePlan = tryNativePlan(installerFile);
             Path optiFineLibraryPath = gameRepository.getLayout().getLibraryFile(manifest.id(), optiFineLibrary);
-            if (Files.exists(fs.getPath("optifine/Patcher.class"))) {
+            if (nativePlan != null ? nativePlan.patcher() : Files.exists(fs.getPath("optifine/Patcher.class"))) {
                 String[] command = {
                         JavaRuntime.getDefault().getBinary().toString(),
                         "-cp",
@@ -182,7 +186,7 @@ public final class OptiFineInstallTask extends Task<GameInstancePatch> {
                         installerFile.toString(),
                         optiFineLibraryPath.toString()
                 };
-                int exitCode = SystemUtils.callExternalProcess(command);
+                int exitCode = NativeProcessorRunner.run(Arrays.asList(command));
                 if (exitCode != 0)
                     throw new IOException("OptiFine patcher failed, command: " + new CommandBuilder().addAll(Arrays.asList(command)));
             } else {
@@ -194,26 +198,28 @@ public final class OptiFineInstallTask extends Task<GameInstancePatch> {
             }
 
             Path launchWrapper2 = fs.getPath("launchwrapper-2.0.jar");
-            if (Files.exists(launchWrapper2)) {
+            if (nativePlan != null ? nativePlan.wrapper2() : Files.exists(launchWrapper2)) {
                 Library launchWrapper = new Library(new Artifact("optifine", "launchwrapper", "2.0"));
                 Path launchWrapperFile = gameRepository.getLayout().getLibraryFile(manifest.id(), launchWrapper);
                 Files.createDirectories(launchWrapperFile.toAbsolutePath().getParent());
-                FileUtils.copyFile(launchWrapper2, launchWrapperFile);
+                if (nativePlan == null || !NativeForgeProfiles.tryCopyArchiveEntry(installerFile, launchWrapper2,
+                        launchWrapperFile, nativePlan.observation(), this::isCancelled)) FileUtils.copyFile(launchWrapper2, launchWrapperFile);
                 hasLaunchWrapper = true;
                 libraries.add(launchWrapper);
             }
 
             Path launchWrapperVersionText = fs.getPath("launchwrapper-of.txt");
-            if (Files.exists(launchWrapperVersionText)) {
-                String launchWrapperVersion = Files.readString(launchWrapperVersionText).trim();
+            if (nativePlan != null ? nativePlan.wrapperVersion() != null : Files.exists(launchWrapperVersionText)) {
+                String launchWrapperVersion = nativePlan != null ? Objects.requireNonNull(nativePlan.wrapperVersion()) : Files.readString(launchWrapperVersionText).trim();
                 Path launchWrapperJar = fs.getPath("launchwrapper-of-" + launchWrapperVersion + ".jar");
 
                 Library launchWrapper = new Library(new Artifact("optifine", "launchwrapper-of", launchWrapperVersion));
 
-                if (Files.exists(launchWrapperJar)) {
+                if (nativePlan != null ? nativePlan.wrapperOf() : Files.exists(launchWrapperJar)) {
                     Path launchWrapperFile = gameRepository.getLayout().getLibraryFile(manifest.id(), launchWrapper);
                     Files.createDirectories(launchWrapperFile.toAbsolutePath().getParent());
-                    FileUtils.copyFile(launchWrapperJar, launchWrapperFile);
+                    if (nativePlan == null || !NativeForgeProfiles.tryCopyArchiveEntry(installerFile, launchWrapperJar,
+                            launchWrapperFile, nativePlan.observation(), this::isCancelled)) FileUtils.copyFile(launchWrapperJar, launchWrapperFile);
 
                     hasLaunchWrapper = true;
                     libraries.add(launchWrapper);
@@ -221,8 +227,8 @@ public final class OptiFineInstallTask extends Task<GameInstancePatch> {
             }
 
             Path buildofText = fs.getPath("buildof.txt");
-            if (Files.exists(buildofText)) {
-                String buildof = Files.readString(buildofText).trim();
+            if (nativePlan != null ? nativePlan.build() != null : Files.exists(buildofText)) {
+                String buildof = nativePlan != null ? Objects.requireNonNull(nativePlan.build()) : Files.readString(buildofText).trim();
                 VersionNumber buildofVer = VersionNumber.asVersion(buildof);
 
                 if (GameComponentAnalyzer.BOOTSTRAP_LAUNCHER_MAIN.equals(originalMainClass)) {
@@ -250,6 +256,20 @@ public final class OptiFineInstallTask extends Task<GameInstancePatch> {
         dependencies.add(new org.jackhuang.hmcl.download.game.GameLibrariesTask(dependencyManager, manifest, true, getResult().getLibraries()));
     }
 
+    private @Nullable NativeBackend.OptifinePlan tryNativePlan(Path installerFile) throws InterruptedException {
+        if (isCancelled()) throw new InterruptedException();
+        @Nullable String executable = System.getProperty("mfcl.native.path");
+        if (executable == null || executable.isBlank()
+                || !Boolean.parseBoolean(System.getProperty("mfcl.native.processors.enabled", "true"))) return null;
+        try {
+            NativeBackend.OptifinePlan plan = NativeBackend.planOptifineInstaller(Path.of(executable), installerFile, this::isCancelled);
+            return NativeBackend.isFileHashObservationCurrent(installerFile, plan.observation()) ? plan : null;
+        } catch (IOException | RuntimeException e) {
+            if (isCancelled()) throw new InterruptedException();
+            return null;
+        }
+    }
+
     /// Creates a task that installs OptiFine from a local installer JAR.
     ///
     /// @param dependencyManager repository-scoped download services
@@ -264,6 +284,11 @@ public final class OptiFineInstallTask extends Task<GameInstancePatch> {
             GameInstanceManifest manifest,
             String gameVersion,
             Path installer) throws IOException, VersionMismatchException {
+        @Nullable NativeBackend.OptifineIdentity identity = tryNativeIdentity(installer);
+        if (identity != null) {
+            if (!identity.minecraft().equals(gameVersion)) throw new VersionMismatchException(identity.minecraft(), gameVersion);
+            return createLocalInstall(dependencyManager, manifest, identity.minecraft(), identity.edition(), identity.release(), installer);
+        }
         try (FileSystem fs = CompressingUtils.createReadOnlyZipFileSystem(installer)) {
             Path configClass = fs.getPath("Config.class");
             if (!Files.exists(configClass)) configClass = fs.getPath("net/optifine/Config.class");
@@ -282,18 +307,25 @@ public final class OptiFineInstallTask extends Task<GameInstancePatch> {
             if (!mcVersion.equals(gameVersion))
                 throw new VersionMismatchException(mcVersion, gameVersion);
 
-            OptiFineRemoteVersion remoteVersion = new OptiFineRemoteVersion(
-                    GameVersionNumber.asGameVersion(mcVersion),
-                    ofEdition + "_" + ofRelease,
-                    Collections.singletonList(""),
-                    false);
-            return new GameDownloadTask(dependencyManager, manifest)
-                    .thenComposeAsync(minecraftJar -> new OptiFineInstallTask(
-                            dependencyManager,
-                            manifest,
-                            remoteVersion,
-                            minecraftJar,
-                            installer));
+            return createLocalInstall(dependencyManager, manifest, mcVersion, ofEdition, ofRelease, installer);
         }
+    }
+
+    private static Task<GameInstancePatch> createLocalInstall(DefaultDependencyManager manager, GameInstanceManifest manifest,
+            String minecraft, String edition, String release, Path installer) {
+        OptiFineRemoteVersion remote = new OptiFineRemoteVersion(GameVersionNumber.asGameVersion(minecraft),
+                edition + "_" + release, Collections.singletonList(""), false);
+        return new GameDownloadTask(manager, manifest)
+                .thenComposeAsync(minecraftJar -> new OptiFineInstallTask(manager, manifest, remote, minecraftJar, installer));
+    }
+
+    private static @Nullable NativeBackend.OptifineIdentity tryNativeIdentity(Path installer) throws IOException {
+        @Nullable String executable = System.getProperty("mfcl.native.path");
+        if (executable == null || executable.isBlank()
+                || !Boolean.parseBoolean(System.getProperty("mfcl.native.processors.enabled", "true"))) return null;
+        try { return NativeBackend.identifyOptifineInstaller(Path.of(executable), installer); }
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt(); throw new java.io.InterruptedIOException("OptiFine inspection was interrupted");
+        } catch (IOException | RuntimeException e) { return null; }
     }
 }

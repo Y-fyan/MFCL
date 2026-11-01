@@ -22,7 +22,10 @@ import org.jackhuang.hmcl.download.DownloadCandidates;
 import org.jackhuang.hmcl.download.DownloadProvider;
 import org.jackhuang.hmcl.game.*;
 import org.jackhuang.hmcl.task.FileDownloadTask;
+import org.jackhuang.hmcl.task.FetchTask;
 import org.jackhuang.hmcl.task.Task;
+import org.jackhuang.hmcl.nativebridge.NativeBackend;
+import org.jetbrains.annotations.Unmodifiable;
 import org.jackhuang.hmcl.util.DigestUtils;
 import org.jackhuang.hmcl.util.io.CompressingUtils;
 import org.jackhuang.hmcl.util.io.FileUtils;
@@ -34,10 +37,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
+import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.function.BooleanSupplier;
+import java.util.function.BiConsumer;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.Objects;
 
 import static org.jackhuang.hmcl.util.logging.Logger.LOG;
@@ -88,6 +96,21 @@ public final class GameLibrariesTask extends Task<Void> {
     }
 
     public static boolean shouldDownloadLibrary(GameRepository gameRepository, GameInstanceManifest manifest, Library library, boolean integrityCheck) {
+        return shouldDownloadLibrary(gameRepository, manifest, library, integrityCheck, null);
+    }
+
+    /// Checks one library using a native SHA-1 observation only when its file identity is unchanged.
+    ///
+    /// Additional Forge checksums and ZIP structure remain validated by the existing Java logic.
+    ///
+    /// @param gameRepository owning repository
+    /// @param manifest resolved game manifest
+    /// @param library library to inspect
+    /// @param integrityCheck whether checksums and JAR structure should be checked
+    /// @param observation optional native hash observation
+    /// @return whether the library should be downloaded
+    static boolean shouldDownloadLibrary(GameRepository gameRepository, GameInstanceManifest manifest, Library library,
+                                         boolean integrityCheck, @Nullable NativeBackend.FileHashResult observation) {
         Path file = gameRepository.getLayout().getLibraryFile(manifest.id(), library);
         if (!Files.isRegularFile(file)) return true;
 
@@ -95,7 +118,11 @@ public final class GameLibrariesTask extends Task<Void> {
             return false;
         }
         try {
-            if (!library.getDownload().validateChecksum(file, true)) {
+            @Nullable String expectedSha1 = library.getDownload().getSha1();
+            boolean useObservation = observation != null && expectedSha1 != null
+                    && expectedSha1.equalsIgnoreCase(observation.expectedSha1())
+                    && NativeBackend.isFileHashObservationCurrent(file, observation);
+            if (useObservation ? !observation.matches() : !library.getDownload().validateChecksum(file, true)) {
                 return true;
             }
             if (library.checksums() != null) {
@@ -120,6 +147,105 @@ public final class GameLibrariesTask extends Task<Void> {
         return false;
     }
 
+    /// Prepares native SHA-1 observations for ordinary existing libraries.
+    ///
+    /// OptiFine and bundled bootstrap files are excluded because the installation loop may modify
+    /// them. Forge-style additional checksums are checked separately. Any unsupported path,
+    /// unstable file, backend error or oversized batch retains the Java verification path.
+    ///
+    /// @param repository game repository
+    /// @param manifest resolved game manifest
+    /// @param libraries library entries in installation order
+    /// @param integrityCheck whether verification is enabled
+    /// @param cancelled task cancellation predicate
+    /// @return immutable map keyed by library index
+    /// @throws InterruptedException if cancelled
+    static @Unmodifiable Map<Integer, NativeBackend.FileHashResult> inspectLibraryHashes(
+            GameRepository repository, GameInstanceManifest manifest, List<Library> libraries,
+            boolean integrityCheck, BooleanSupplier cancelled) throws InterruptedException {
+        return inspectLibraryHashes(repository, manifest, libraries, integrityCheck, cancelled, null);
+    }
+
+    /// Inspects ordinary libraries and optionally reports native hash-batch progress.
+    ///
+    /// @param repository game repository
+    /// @param manifest resolved game manifest
+    /// @param libraries library entries in installation order
+    /// @param integrityCheck whether verification is enabled
+    /// @param cancelled task cancellation predicate
+    /// @param progress optional callback receiving completed and total native checks
+    /// @return immutable map keyed by library index
+    /// @throws InterruptedException if cancelled
+    static @Unmodifiable Map<Integer, NativeBackend.FileHashResult> inspectLibraryHashes(
+            GameRepository repository, GameInstanceManifest manifest, List<Library> libraries,
+            boolean integrityCheck, BooleanSupplier cancelled, @Nullable BiConsumer<Long, Long> progress) throws InterruptedException {
+        return inspectLibraryHashes(repository, manifest, libraries, integrityCheck, cancelled, progress, null);
+    }
+
+    /// Inspects library files with an optional precomputed native rule selection.
+    /// @param repository game repository
+    /// @param manifest resolved game manifest
+    /// @param libraries library entries in installation order
+    /// @param integrityCheck whether verification is enabled
+    /// @param cancelled task cancellation predicate
+    /// @param progress optional native hash progress callback
+    /// @param applicability optional rule-selection flags
+    /// @return immutable map keyed by library index
+    /// @throws InterruptedException if cancelled
+    private static @Unmodifiable Map<Integer, NativeBackend.FileHashResult> inspectLibraryHashes(
+            GameRepository repository, GameInstanceManifest manifest, List<Library> libraries, boolean integrityCheck,
+            BooleanSupplier cancelled, @Nullable BiConsumer<Long, Long> progress, boolean @Nullable [] applicability) throws InterruptedException {
+        if (cancelled.getAsBoolean()) throw new InterruptedException();
+        @Nullable String executable = System.getProperty("mfcl.native.path");
+        if (!integrityCheck || executable == null || executable.isBlank()
+                || !Boolean.parseBoolean(System.getProperty("mfcl.native.libraries.enabled", "true"))) return Map.of();
+        List<NativeBackend.FileHashInput> inputs = new ArrayList<>();
+        for (int i = 0; i < libraries.size(); i++) {
+            if (cancelled.getAsBoolean()) throw new InterruptedException();
+            try {
+                Library library = libraries.get(i);
+                if (!(applicability == null ? library.appliesToCurrentEnvironment() : applicability[i]) || "optifine".equals(library.groupId())
+                        || library.is("org.jackhuang.hmcl", "mmc-bootstrap")
+                        || library.is("org.jackhuang.hmcl", "transformer-discovery-service")) continue;
+                @Nullable String sha1 = library.getDownload().getSha1();
+                if (!DigestUtils.isSha1Digest(sha1)) continue;
+                Path file = repository.getLayout().getLibraryFile(manifest.id(), library);
+                if (file.getFileSystem() != FileSystems.getDefault() || !Files.isRegularFile(file)) continue;
+                inputs.add(new NativeBackend.FileHashInput(i, file, sha1));
+            } catch (RuntimeException ignored) {
+                // Preserve the original per-library error handling for unusual metadata or layouts.
+            }
+        }
+        if (inputs.isEmpty()) return Map.of();
+        try {
+            return NativeBackend.checkFileHashes(Path.of(executable), inputs, cancelled, progress);
+        } catch (IOException | RuntimeException e) {
+            if (cancelled.getAsBoolean()) throw new InterruptedException();
+            LOG.warning("Native library hash inspection failed; using Java verification");
+            return Map.of();
+        }
+    }
+
+    /// Selects applicable libraries in Rust or retains the original Java checks.
+    /// @param libraries libraries in installation order
+    /// @param cancelled owning task cancellation predicate
+    /// @return native flags, or null when the Java path should be used
+    /// @throws InterruptedException when cancelled
+    static boolean @Nullable [] selectLibraryApplicability(List<Library> libraries, BooleanSupplier cancelled) throws InterruptedException {
+        if (cancelled.getAsBoolean()) throw new InterruptedException();
+        @Nullable String executable = System.getProperty("mfcl.native.path");
+        if (executable == null || executable.isBlank()
+                || !Boolean.parseBoolean(System.getProperty("mfcl.native.libraries.enabled", "true"))) return null;
+        try {
+            boolean[] selected = NativeBackend.selectLibraryApplicability(Path.of(executable), libraries, cancelled);
+            if (cancelled.getAsBoolean()) throw new InterruptedException();
+            return selected;
+        } catch (IOException | RuntimeException e) {
+            if (cancelled.getAsBoolean()) throw new InterruptedException();
+            return null;
+        }
+    }
+
     private static boolean shouldDownloadFMLLib(FMLLib fmlLib, Path file) {
         if (!Files.isRegularFile(file))
             return true;
@@ -134,11 +260,27 @@ public final class GameLibrariesTask extends Task<Void> {
 
     /// {@inheritDoc}
     @Override
-    public void execute() throws IOException {
+    public void execute() throws IOException, InterruptedException {
         int progress = 0;
+        @Nullable String nativeExecutable = System.getProperty("mfcl.native.path");
+        boolean batchEnabled = nativeExecutable != null && !nativeExecutable.isBlank()
+                && Boolean.parseBoolean(System.getProperty("mfcl.native.download.enabled", "true"))
+                && Boolean.parseBoolean(System.getProperty("mfcl.native.libraries.batch.enabled", "true"));
+        List<NativeDownloadBatchTask.Entry> batch = new ArrayList<>();
         GameRepository gameRepository = dependencyManager.getGameRepository();
-        for (Library library : libraries) {
-            if (!library.appliesToCurrentEnvironment()) {
+        boolean @Nullable [] applicability = selectLibraryApplicability(libraries, this::isCancelled);
+        AtomicBoolean nativeProgressReported = new AtomicBoolean();
+        Map<Integer, NativeBackend.FileHashResult> observations = inspectLibraryHashes(
+                gameRepository, manifest, libraries, integrityCheck, this::isCancelled, (completed, total) -> {
+                    if (total > 0) {
+                        nativeProgressReported.set(true);
+                        updateProgress(0.5 * completed / total);
+                    }
+                }, applicability);
+        for (int libraryIndex = 0; libraryIndex < libraries.size(); libraryIndex++) {
+            if (isCancelled()) throw new InterruptedException();
+            Library library = libraries.get(libraryIndex);
+            if (!(applicability == null ? library.appliesToCurrentEnvironment() : applicability[libraryIndex])) {
                 continue;
             }
 
@@ -196,19 +338,55 @@ public final class GameLibrariesTask extends Task<Void> {
                 }
             }
 
-            if (shouldDownloadLibrary(gameRepository, manifest, library, integrityCheck) && (library.hasDownloadURL() || !"optifine".equals(library.groupId()))) {
-                dependencies.add(new LibraryDownloadTask(dependencyManager, file, library).withCounter("hmcl.install.libraries"));
+            if (shouldDownloadLibrary(gameRepository, manifest, library, integrityCheck, observations.get(libraryIndex)) && (library.hasDownloadURL() || !"optifine".equals(library.groupId()))) {
+                LibraryDownloadTask fallback = new LibraryDownloadTask(dependencyManager, file, library);
+                @Nullable NativeDownloadBatchTask.Entry entry = batchEnabled ? batchLibrary(file, library, fallback) : null;
+                if (entry == null) dependencies.add(fallback.withCounter("hmcl.install.libraries"));
+                else batch.add(entry);
             } else {
                 dependencyManager.getCacheRepository().tryCacheLibrary(library, file);
             }
 
-            updateProgress(++progress, libraries.size());
+            progress++;
+            if (nativeProgressReported.get()) updateProgress(0.5 + 0.5 * progress / libraries.size());
+            else updateProgress(progress, libraries.size());
         }
 
+        int individualCount = dependencies.size();
+        for (int start = 0; start < batch.size(); start += 16) {
+            dependencies.add(new NativeDownloadBatchTask(Path.of(Objects.requireNonNull(nativeExecutable)),
+                    batch.subList(start, Math.min(start + 16, batch.size())), "hmcl.install.libraries"));
+        }
         if (!dependencies.isEmpty()) {
-            getProperties().put("total", dependencies.size());
+            getProperties().put("total", individualCount + batch.size());
             notifyPropertiesChanged();
         }
+    }
+
+    /// Selects ordinary libraries whose existing cache and validation behavior can be retained.
+    private @Nullable NativeDownloadBatchTask.Entry batchLibrary(Path file, Library library, LibraryDownloadTask fallback) {
+        if (library.is("net.minecraftforge", "forge") || "optifine".equals(library.groupId())
+                || (library.checksums() != null && !library.checksums().isEmpty())) return null;
+        try {
+            @Nullable String sha1 = library.getDownload().getSha1();
+            if (!NativeDownloadBatchTask.isBatchSizeEligible(library.getDownload().getSize())
+                    || !DigestUtils.isSha1Digest(sha1) || dependencyManager.getCacheRepository().mayHaveLibrary(library)) return null;
+            DownloadCandidates candidates = dependencyManager.getDownloadProvider().getDownloadCandidates(library.getDownload().getUrl());
+            List<String> urls = new ArrayList<>();
+            for (var source : candidates.getCandidates()) {
+                if (source.url() == null || source.connectTimeout() != null || source.readTimeout() != null
+                        || source.retry() >= 0 || !FetchTask.isNativeSourceEligible(source.url())) return null;
+                urls.add(source.url().href());
+            }
+            if (urls.isEmpty() || urls.size() > 8) return null;
+            FileDownloadTask transfer = new FileDownloadTask(candidates, file, new FileDownloadTask.IntegrityCheck("SHA-1", sha1));
+            transfer.setCacheRepository(dependencyManager.getCacheRepository()); transfer.setCaching(true);
+            transfer.addIntegrityCheckHandler(FileDownloadTask.ZIP_INTEGRITY_CHECK_HANDLER);
+            return new NativeDownloadBatchTask.Entry(transfer, fallback, sha1, List.copyOf(urls), () -> {
+                try { dependencyManager.getCacheRepository().cacheLibrary(library, file, false); }
+                catch (IOException e) { LOG.warning("Failed to cache downloaded library " + library, e); }
+            });
+        } catch (RuntimeException e) { return null; }
     }
 
     private static @Nullable List<FMLLib> getFMLLibs(String forgeVersion) {

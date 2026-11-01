@@ -21,12 +21,15 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import org.jackhuang.hmcl.download.DefaultDependencyManager;
 import org.jackhuang.hmcl.download.DownloadProvider;
+import org.jackhuang.hmcl.download.NativeLoaderPlanner;
+import org.jackhuang.hmcl.download.LoaderLibraryParser;
 import org.jackhuang.hmcl.download.fabric.FabricInstallTask;
 import org.jackhuang.hmcl.game.*;
 import org.jackhuang.hmcl.task.GetTask;
 import org.jackhuang.hmcl.task.Task;
 import org.jackhuang.hmcl.util.gson.JsonUtils;
 import org.jackhuang.hmcl.util.versioning.GameVersionNumber;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -68,17 +71,25 @@ public final class LegacyFabricInstallTask extends Task<GameInstancePatch> {
 
     @Override
     public boolean isRelyingOnDependencies() {
-        return false;
+        return true;
     }
 
     @Override
-    public void execute() {
-        setResult(getPatch(JsonUtils.GSON.fromJson(launchMetaTask.getResult(), FabricInstallTask.FabricInfo.class), remote.getGameVersion(), remote.getSelfVersion()));
+    public void execute() throws InterruptedException {
+        @Nullable GameInstancePatch patch = NativeLoaderPlanner.tryPlan(GameComponentType.LEGACY_FABRIC,
+                launchMetaTask.getResult(), remote.getSelfVersion(), this::isCancelled);
+        if (patch == null) patch = getPatch(JsonUtils.GSON.fromJson(launchMetaTask.getResult(), FabricInstallTask.FabricInfo.class), remote.getGameVersion(), remote.getSelfVersion());
+        setResult(patch);
 
         dependencies.add(new org.jackhuang.hmcl.download.game.GameLibrariesTask(dependencyManager, manifest, true, getResult().getLibraries()));
     }
 
-    private GameInstancePatch getPatch(FabricInstallTask.FabricInfo legacyFabricInfo, GameVersionNumber gameVersion, String loaderVersion) {
+    /// Builds a Legacy Fabric patch from already parsed Java metadata.
+    /// @param legacyFabricInfo parsed metadata
+    /// @param gameVersion target game version
+    /// @param loaderVersion loader version
+    /// @return the Java fallback patch
+    private static GameInstancePatch getPatch(FabricInstallTask.FabricInfo legacyFabricInfo, GameVersionNumber gameVersion, String loaderVersion) {
         JsonObject launcherMeta = legacyFabricInfo.getLauncherMeta();
         Arguments arguments = new Arguments();
 
@@ -101,7 +112,7 @@ public final class LegacyFabricInstallTask extends Task<GameInstancePatch> {
         // Don't know the purpose of ignoring client libraries.
         for (String side : new String[]{"common", "server"}) {
             for (JsonElement element : librariesObject.getAsJsonArray(side)) {
-                libraries.add(JsonUtils.GSON.fromJson(element, Library.class));
+                libraries.add(LoaderLibraryParser.parse(element));
             }
         }
 

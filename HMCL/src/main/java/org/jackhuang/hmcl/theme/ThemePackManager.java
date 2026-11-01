@@ -1536,7 +1536,7 @@ public final class ThemePackManager {
 
     /// Downloads one network background into a temporary file without installing it into the persistent image cache.
     private static void downloadNetworkBackground(WebURL url, Path outputFile) throws IOException {
-        HttpURLConnection connection = NetworkUtils.resolveConnection(NetworkUtils.createHttpConnection(url));
+        HttpURLConnection connection = NetworkUtils.resolveDirectConnection(NetworkUtils.createDirectHttpConnection(url));
         try {
             int responseCode = connection.getResponseCode();
             if (responseCode / 100 != 2) {

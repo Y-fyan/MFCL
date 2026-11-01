@@ -56,6 +56,9 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.*;
 import java.net.URL;
+import java.net.Proxy;
+import java.net.HttpURLConnection;
+import java.net.URLConnection;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -311,7 +314,7 @@ public final class SelfDependencyPatcher {
 
                     LOG.info("Downloading " + url);
 
-                    try (InputStream is = new URL(url).openStream();
+                    try (InputStream is = openDirectDownload(url);
                          OutputStream os = Files.newOutputStream(dependency.localPath())) {
 
                         int read;
@@ -342,6 +345,30 @@ public final class SelfDependencyPatcher {
             dialog.dispose();
             return;
         }
+    }
+
+    /// Opens a bootstrap dependency directly, including every HTTP redirect.
+    /// @param source dependency URL
+    /// @return response body stream
+    /// @throws IOException if a direct connection or redirect fails
+    static InputStream openDirectDownload(String source) throws IOException {
+        URL current = new URL(source);
+        for (int redirects = 0; redirects <= 20; redirects++) {
+            URLConnection connection = current.openConnection(Proxy.NO_PROXY);
+            if (!(connection instanceof HttpURLConnection http)) return connection.getInputStream();
+            http.setInstanceFollowRedirects(false);
+            int status = http.getResponseCode();
+            if (status >= 300 && status <= 308 && status != 304 && status != 306) {
+                String location = http.getHeaderField("Location");
+                http.disconnect();
+                if (location == null || location.isBlank()) throw new IOException("Empty dependency redirect");
+                current = new URL(current, location);
+                continue;
+            }
+            if (status / 100 != 2) { http.disconnect(); throw new IOException("Dependency download failed: HTTP " + status); }
+            return http.getInputStream();
+        }
+        throw new IOException("Too many dependency redirects");
     }
 
     private List<DependencyDescriptor> checkMissingDependencies() {

@@ -35,6 +35,8 @@ import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 import org.jackhuang.hmcl.game.HMCLCacheRepository;
+import org.jackhuang.hmcl.nativebridge.NativeBackend;
+import org.jackhuang.hmcl.nativebridge.BundledNativeBackend;
 import org.jackhuang.hmcl.setting.*;
 import org.jackhuang.hmcl.task.AsyncTaskExecutor;
 import org.jackhuang.hmcl.task.Schedulers;
@@ -168,6 +170,8 @@ public final class Launcher extends Application {
 
     /// Initializes modules and runtime services that depend on loaded settings.
     private static void initializeSettingsRuntime() {
+        discoverBundledNativeBackend();
+        checkConfiguredNativeBackend();
         DownloadProviders.init();
         ProxyManager.init();
         Accounts.init();
@@ -184,6 +188,50 @@ public final class Launcher extends Application {
                 return LauncherSettings.getDefaultCommonDirectory();
             }
         }, settings().commonDirectoryProperty(), settings().commonDirectoryTypeProperty()));
+    }
+
+    /// Discovers a packaged backend asynchronously without overriding an explicit path setting.
+    ///
+    /// Setting `mfcl.native.bundle.enabled=false` or explicitly setting `mfcl.native.path` to an
+    /// empty value disables automatic discovery. A backend is enabled only after a health check.
+    private static void discoverBundledNativeBackend() {
+        if (System.getProperty("mfcl.native.path") != null
+                || !Boolean.parseBoolean(System.getProperty("mfcl.native.bundle.enabled", "true"))) return;
+        Schedulers.io().execute(() -> {
+            try {
+                Optional<Path> backend = BundledNativeBackend.installForCurrentPlatform(MfclPaths.HOME);
+                if (backend.isEmpty()) return;
+                NativeBackend.checkHealth(backend.get());
+                @Nullable Object previous = System.getProperties().putIfAbsent("mfcl.native.path", backend.get().toString());
+                if (previous == null) LOG.info("Bundled native backend is available");
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                LOG.warning("Bundled native backend discovery was interrupted");
+            } catch (Exception e) {
+                LOG.warning("Bundled native backend is unavailable; using Java fallback", e);
+            }
+        });
+    }
+
+    /// Checks an explicitly configured experimental native backend without blocking startup.
+    ///
+    /// No launcher operations are routed to the backend by this diagnostic check.
+    private static void checkConfiguredNativeBackend() {
+        String backendPath = System.getProperty("mfcl.native.path", "");
+        if (backendPath.isBlank()) {
+            return;
+        }
+        Schedulers.io().execute(() -> {
+            try {
+                NativeBackend.checkHealth(Path.of(backendPath));
+                LOG.info("Configured native backend health check succeeded; supported native operations are available");
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                LOG.warning("Experimental native backend health check was interrupted");
+            } catch (Exception e) {
+                LOG.warning("Experimental native backend health check failed; Java backend remains active", e);
+            }
+        });
     }
 
     private static void appendScreen(StringBuilder builder, Screen screen) {

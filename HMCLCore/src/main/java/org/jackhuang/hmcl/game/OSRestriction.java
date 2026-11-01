@@ -20,6 +20,7 @@ package org.jackhuang.hmcl.game;
 import org.jackhuang.hmcl.util.Lang;
 import org.jackhuang.hmcl.util.platform.Architecture;
 import org.jackhuang.hmcl.util.platform.OperatingSystem;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.regex.Pattern;
 
@@ -55,6 +56,22 @@ public final class OSRestriction {
         this.version = version;
         this.arch = arch;
     }
+
+    /// Returns the raw operating-system name from the version manifest.
+    /// @return manifest name, or null
+    public @Nullable String getName() { return name; }
+
+    /// Returns the original system-version regex.
+    /// @return version regex, or null
+    public @Nullable String getVersionRegex() { return version; }
+
+    /// Returns the original architecture regex.
+    /// @return architecture regex, or null
+    public @Nullable String getArchitectureRegex() { return arch; }
+
+    /// Indicates whether this restriction has version or architecture regexes.
+    /// @return whether either regex is present
+    public boolean hasRegexRestriction() { return version != null || arch != null; }
 
     public boolean allow() {
         // Some modpacks directly use { name: "win-x86" }

@@ -29,6 +29,7 @@ import org.jackhuang.hmcl.util.gson.Validation;
 import org.jackhuang.hmcl.util.io.FileUtils;
 import org.jackhuang.hmcl.util.platform.OperatingSystem;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -98,10 +99,11 @@ public class DefaultCacheRepository extends CacheRepository {
 
         try {
             LibraryDownloadInfo info = library.getDownload();
-            String hash = info.getSha1();
+            @Nullable String hash = info.getSha1();
             if (hash != null) {
-                String checksum = DigestUtils.digestToString("SHA-1", jar);
-                if (hash.equalsIgnoreCase(checksum))
+                @Nullable Boolean nativeResult = tryNativeCacheVerification(jar, SHA1, hash);
+                boolean matches = nativeResult != null ? nativeResult : hash.equalsIgnoreCase(DigestUtils.digestToString(SHA1, jar));
+                if (matches)
                     cacheLibrary(library, jar, false);
             } else {
                 if (library.checksums() != null) {
@@ -118,18 +120,32 @@ public class DefaultCacheRepository extends CacheRepository {
         }
     }
 
-    /**
-     * Get the path of cached library, empty if not cached
-     *
-     * @param library the library we check if cached.
-     * @return the cached path if exists, otherwise empty
-     */
+    /// Returns a conservative presence hint without trusting cached file contents.
+    /// Subclasses retain their own cache lookup behavior through the normal task path.
+    public boolean mayHaveLibrary(Library library) {
+        if (getClass() != DefaultCacheRepository.class) return true;
+        try {
+            LibraryDownloadInfo info = library.getDownload();
+            @Nullable String hash = info.getSha1();
+            if (hash != null && mayHaveCachedFile(null, SHA1, hash)) return true;
+            Lock readLock = lock.readLock(); readLock.lock();
+            try {
+                for (LibraryIndex entry : index.libraries()) {
+                    if (entry.name().equals(library.name()) && entry.type().equalsIgnoreCase(LibraryIndex.TYPE_FORGE)
+                            && mayHaveCachedFile(null, SHA1, entry.hash())) return true;
+                }
+            } finally { readLock.unlock(); }
+            return info.getPath() == null || Files.exists(librariesDir.resolve(info.getPath()));
+        } catch (RuntimeException e) { return true; }
+    }
+
+    /// Returns a verified cached library path when available.
     public Optional<Path> getLibrary(Library library) {
         LibraryDownloadInfo info = library.getDownload();
-        String hash = info.getSha1();
+        @Nullable String hash = info.getSha1();
 
         if (fileExists(SHA1, hash))
-            return Optional.of(getFile(SHA1, hash));
+            return Optional.of(getFile(SHA1, Objects.requireNonNull(hash)));
 
         Lock readLock = lock.readLock();
         readLock.lock();
@@ -157,8 +173,9 @@ public class DefaultCacheRepository extends CacheRepository {
         if (Files.exists(jar)) {
             try {
                 if (hash != null) {
-                    String checksum = DigestUtils.digestToString("SHA-1", jar);
-                    if (hash.equalsIgnoreCase(checksum))
+                    @Nullable Boolean nativeResult = tryNativeCacheVerification(jar, SHA1, hash);
+                    boolean matches = nativeResult != null ? nativeResult : hash.equalsIgnoreCase(DigestUtils.digestToString(SHA1, jar));
+                    if (matches)
                         return Optional.of(restore(jar, () -> cacheLibrary(library, jar, false)));
                 } else {
                     if (library.checksums() != null && !library.checksums().isEmpty()) {
@@ -186,17 +203,19 @@ public class DefaultCacheRepository extends CacheRepository {
      * @throws IOException if failed to calculate hash code of {@code path} or copy the file to cache
      */
     public Path cacheLibrary(Library library, Path path, boolean forge) throws IOException {
-        String hash = library.getDownload().getSha1();
-        if (!DigestUtils.isSha1Digest(hash))
-            hash = DigestUtils.digestToString(SHA1, path);
+        @Nullable String hash = library.getDownload().getSha1();
+        if (!DigestUtils.isSha1Digest(hash)) {
+            @Nullable String nativeHash = tryNativeCacheSha1(path);
+            hash = nativeHash == null ? DigestUtils.digestToString(SHA1, path) : nativeHash;
+        }
 
-        Path cache = getFile(SHA1, hash);
-        FileUtils.copyFile(path, cache);
+        String cacheHash = Objects.requireNonNull(hash);
+        Path cache = super.cacheFile(path, SHA1, cacheHash);
 
         Lock writeLock = lock.writeLock();
         writeLock.lock();
         try {
-            LibraryIndex libIndex = new LibraryIndex(library.name(), hash, forge ? LibraryIndex.TYPE_FORGE : LibraryIndex.TYPE_JAR);
+            LibraryIndex libIndex = new LibraryIndex(library.name(), cacheHash, forge ? LibraryIndex.TYPE_FORGE : LibraryIndex.TYPE_JAR);
             index.libraries().add(libIndex);
             saveIndex();
         } finally {

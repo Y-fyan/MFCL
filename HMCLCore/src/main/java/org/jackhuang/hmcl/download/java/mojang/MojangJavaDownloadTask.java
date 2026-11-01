@@ -30,6 +30,9 @@ import org.jackhuang.hmcl.util.io.ChecksumMismatchException;
 import org.jackhuang.hmcl.util.io.FileUtils;
 import org.jackhuang.hmcl.util.platform.UnsupportedPlatformException;
 import org.tukaani.xz.LZMAInputStream;
+import org.jackhuang.hmcl.nativebridge.NativeBackend;
+import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.Unmodifiable;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -61,6 +64,11 @@ public final class MojangJavaDownloadTask extends Task<MojangJavaDownloadTask.Re
         this.downloadProvider = downloadProvider;
         this.javaDownloadsTask = new GetTask(downloadProvider.getDownloadCandidates(JAVA_LIST_URL))
                 .thenComposeAsync(javaDownloadsJson -> {
+                    @Nullable MojangJavaDownloads.JavaDownload nativeDownload = NativeRuntimeList.trySelect(javaDownloadsJson, platform, javaVersion, this::isCancelled);
+                    if (nativeDownload != null) {
+                        this.download = nativeDownload;
+                        return new GetTask(downloadProvider.getDownloadCandidates(nativeDownload.manifest().getUrl()));
+                    }
                     MojangJavaDownloads allDownloads = JsonUtils.fromNonNullJson(javaDownloadsJson, MojangJavaDownloads.class);
 
                     Map<String, List<MojangJavaDownloads.JavaDownload>> osDownloads = allDownloads.downloads().get(platform);
@@ -75,7 +83,10 @@ public final class MojangJavaDownloadTask extends Task<MojangJavaDownloadTask.Re
                     }
                     throw new UnsupportedPlatformException("Candidates: " + JsonUtils.GSON.toJson(candidates));
                 })
-                .thenApplyAsync(javaDownloadJson -> JsonUtils.fromNonNullJson(javaDownloadJson, MojangJavaRemoteFiles.class));
+                .thenApplyAsync(javaDownloadJson -> {
+                    @Nullable MojangJavaRemoteFiles nativeFiles = NativeRuntimeManifest.tryParse(javaDownloadJson, this::isCancelled);
+                    return nativeFiles != null ? nativeFiles : JsonUtils.fromNonNullJson(javaDownloadJson, MojangJavaRemoteFiles.class);
+                });
     }
 
     @Override
@@ -85,7 +96,12 @@ public final class MojangJavaDownloadTask extends Task<MojangJavaDownloadTask.Re
 
     @Override
     public void execute() throws Exception {
-        for (Map.Entry<String, MojangJavaRemoteFiles.Remote> entry : javaDownloadsTask.getResult().files().entrySet()) {
+        List<Map.Entry<String, MojangJavaRemoteFiles.Remote>> entries = new ArrayList<>(javaDownloadsTask.getResult().files().entrySet());
+        RuntimePathValidator.validate(tempDir, entries, this::isCancelled);
+        @Unmodifiable Map<Integer, NativeBackend.FileHashResult> observations = NativeRuntimeFileHashes.inspect(tempDir, entries, this::isCancelled);
+        boolean nativeTreePrepared = NativeRuntimeTree.tryPrepare(tempDir, entries, this::isCancelled);
+        for (int index = 0; index < entries.size(); index++) {
+            Map.Entry<String, MojangJavaRemoteFiles.Remote> entry = entries.get(index);
             Path dest = tempDir.resolve(entry.getKey());
             if (entry.getValue() instanceof MojangJavaRemoteFiles.RemoteFile file) {
                 // Use local file if it already exists
@@ -94,7 +110,8 @@ public final class MojangJavaDownloadTask extends Task<MojangJavaDownloadTask.Re
                     if (localFileAttributes.isRegularFile() && file.getDownloads().containsKey("raw")) {
                         DownloadInfo downloadInfo = file.getDownloads().get("raw");
                         if (localFileAttributes.size() == downloadInfo.getSize()) {
-                            ChecksumMismatchException.verifyChecksum(dest, "SHA-1", downloadInfo.getSha1());
+                            @Nullable NativeBackend.FileHashResult observation = observations.get(index);
+                            verifyRuntimeFile(dest, downloadInfo, observation);
                             LOG.info("Skip existing file: " + dest);
                             continue;
                         }
@@ -104,14 +121,15 @@ public final class MojangJavaDownloadTask extends Task<MojangJavaDownloadTask.Re
 
                 if (file.getDownloads().containsKey("lzma")) {
                     DownloadInfo download = file.getDownloads().get("lzma");
-                    DownloadInfo raw = file.getDownloads().get("raw");
+                    @Nullable DownloadInfo raw = file.getDownloads().get("raw");
 
-                    String rawSha1;
+                    @Nullable String rawSha1;
                     if (raw != null && raw.getSha1() != null) {
                         rawSha1 = raw.getSha1();
                     } else {
                         rawSha1 = null;
                     }
+                    int rawSize = raw == null ? 0 : raw.getSize();
 
                     Path tempFile = tempDir.resolve(entry.getKey() + ".lzma");
                     var task = new FileDownloadTask(downloadProvider.getDownloadCandidates(download.getUrl()), tempFile,
@@ -119,17 +137,18 @@ public final class MojangJavaDownloadTask extends Task<MojangJavaDownloadTask.Re
                     task.setName(entry.getKey());
                     dependencies.add(task.thenRunAsync(() -> {
                         Path decompressed = tempDir.resolve(entry.getKey() + ".tmp");
-                        var digest = MessageDigest.getInstance("SHA-1");
-                        try (var input = new DigestInputStream(new LZMAInputStream(Files.newInputStream(tempFile)), digest)) {
-                            Files.copy(input, decompressed, StandardCopyOption.REPLACE_EXISTING);
-                        } catch (IOException e) {
-                            throw new ArtifactMalformedException("File " + entry.getKey() + " is malformed", e);
-                        }
+                        if (!NativeRuntimeLzma.tryDecompress(tempFile, decompressed, rawSha1, rawSize, this::isCancelled)) {
+                            var digest = MessageDigest.getInstance("SHA-1");
+                            try (var input = new DigestInputStream(new LZMAInputStream(Files.newInputStream(tempFile)), digest)) {
+                                Files.copy(input, decompressed, StandardCopyOption.REPLACE_EXISTING);
+                            } catch (IOException e) {
+                                throw new ArtifactMalformedException("File " + entry.getKey() + " is malformed", e);
+                            }
 
-                        String actualSha1 = HexFormat.of().formatHex(digest.digest());
-
-                        if (rawSha1 != null && !actualSha1.equalsIgnoreCase(rawSha1)) {
-                            throw new ArtifactMalformedException("File " + entry.getKey() + " has incorrect SHA-1 hash: expected " + rawSha1 + ", got " + actualSha1);
+                            String actualSha1 = HexFormat.of().formatHex(digest.digest());
+                            if (rawSha1 != null && !actualSha1.equalsIgnoreCase(rawSha1)) {
+                                throw new ArtifactMalformedException("File " + entry.getKey() + " has incorrect SHA-1 hash: expected " + rawSha1 + ", got " + actualSha1);
+                            }
                         }
 
                         try {
@@ -156,11 +175,27 @@ public final class MojangJavaDownloadTask extends Task<MojangJavaDownloadTask.Re
                     continue;
                 }
             } else if (entry.getValue() instanceof MojangJavaRemoteFiles.RemoteDirectory) {
-                Files.createDirectories(dest);
+                if (!nativeTreePrepared) Files.createDirectories(dest);
             } else if (entry.getValue() instanceof MojangJavaRemoteFiles.RemoteLink link) {
-                Files.deleteIfExists(dest);
-                Files.createSymbolicLink(dest, Paths.get(link.getTarget()));
+                if (!nativeTreePrepared) {
+                    Files.deleteIfExists(dest);
+                    Files.createSymbolicLink(dest, Paths.get(link.getTarget()));
+                }
             }
+        }
+    }
+
+    /// Verifies an existing runtime file using a current native observation or the Java checksum path.
+    /// @param file existing runtime file
+    /// @param download expected raw download metadata
+    /// @param observation optional native checksum observation
+    /// @throws IOException if the file cannot be read or does not match
+    static void verifyRuntimeFile(Path file, DownloadInfo download, @Nullable NativeBackend.FileHashResult observation) throws IOException {
+        if (observation != null && Objects.equals(download.getSha1(), observation.expectedSha1())
+                && NativeBackend.isFileHashObservationCurrent(file, observation)) {
+            if (!observation.matches()) throw new IOException("Native runtime checksum mismatch");
+        } else {
+            ChecksumMismatchException.verifyChecksum(file, "SHA-1", download.getSha1());
         }
     }
 

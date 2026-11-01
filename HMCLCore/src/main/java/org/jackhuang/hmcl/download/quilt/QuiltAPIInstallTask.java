@@ -64,7 +64,7 @@ public final class QuiltAPIInstallTask extends Task<GameInstancePatch> {
 
     @Override
     public boolean isRelyingOnDependencies() {
-        return false;
+        return true;
     }
 
     @Override

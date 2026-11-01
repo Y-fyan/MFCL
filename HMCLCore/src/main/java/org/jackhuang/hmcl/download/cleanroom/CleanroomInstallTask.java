@@ -20,6 +20,7 @@ package org.jackhuang.hmcl.download.cleanroom;
 import org.jackhuang.hmcl.download.*;
 import org.jackhuang.hmcl.download.forge.ForgeNewInstallProfile;
 import org.jackhuang.hmcl.download.forge.ForgeNewInstallTask;
+import org.jackhuang.hmcl.download.forge.NativeForgeProfiles;
 import org.jackhuang.hmcl.download.game.GameDownloadTask;
 import org.jackhuang.hmcl.game.GameComponentAnalyzer;
 import org.jackhuang.hmcl.game.GameComponentType;
@@ -172,6 +173,15 @@ public final class CleanroomInstallTask extends Task<GameInstancePatch> {
             GameInstanceManifest manifest,
             String gameVersion,
             Path installer) throws IOException, VersionMismatchException, UnsupportedInstallationException {
+        @Nullable NativeForgeProfiles.Parsed nativeProfiles = NativeForgeProfiles.tryReadForInstall(installer);
+        if (nativeProfiles != null && GameComponentType.CLEANROOM.getPatchId().equals(nativeProfiles.profileName())) {
+            GameComponentAnalyzer analyzer = GameComponentAnalyzer.analyze(manifest, GameVersionNumber.asGameVersion(gameVersion));
+            if (analyzer.has(GameComponentType.FORGE)) throw new UnsupportedInstallationException(CLEANROOM_NOT_COMPATIBLE_WITH_FORGE);
+            ForgeNewInstallProfile profile = nativeProfiles.profile();
+            if (!gameVersion.equals(profile.getMinecraft())) throw new VersionMismatchException(profile.getMinecraft(), gameVersion);
+            return new CleanroomInstallTask(dependencyManager, manifest, GameVersionNumber.asGameVersion(gameVersion),
+                    modifyVersion(profile.getVersion()), installer);
+        }
         try (FileSystem fs = CompressingUtils.createReadOnlyZipFileSystem(installer)) {
             String installProfileText = Files.readString(fs.getPath("install_profile.json"));
             Map<?, ?> installProfile = JsonUtils.fromNonNullJson(installProfileText, Map.class);

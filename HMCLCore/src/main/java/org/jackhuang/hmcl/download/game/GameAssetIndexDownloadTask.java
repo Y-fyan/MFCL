@@ -21,11 +21,13 @@ import com.google.gson.JsonParseException;
 import org.jackhuang.hmcl.download.AbstractDependencyManager;
 import org.jackhuang.hmcl.download.DownloadProvider;
 import org.jackhuang.hmcl.game.*;
+import org.jackhuang.hmcl.nativebridge.NativeBackend;
 import org.jackhuang.hmcl.task.FileDownloadTask;
 import org.jackhuang.hmcl.task.Task;
 import org.jackhuang.hmcl.util.DigestUtils;
 import org.jackhuang.hmcl.util.StringUtils;
 import org.jackhuang.hmcl.util.gson.JsonUtils;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -66,7 +68,7 @@ public final class GameAssetIndexDownloadTask extends Task<Void> {
     }
 
     @Override
-    public void execute() {
+    public void execute() throws InterruptedException {
         AssetIndexInfo assetIndexInfo = manifest.getAssetIndex();
         GameRepository gameRepository = dependencyManager.getGameRepository();
         String assetId = assetIndexInfo.getId();
@@ -77,7 +79,7 @@ public final class GameAssetIndexDownloadTask extends Task<Void> {
             // verify correctness of file content
             if (verifyHashCode) {
                 try {
-                    String actualSum = DigestUtils.digestToString("SHA-1", assetIndexFile);
+                    String actualSum = hashIndex(assetIndexFile);
                     if (actualSum.equalsIgnoreCase(assetIndexInfo.getSha1()))
                         return;
                 } catch (IOException e) {
@@ -103,6 +105,22 @@ public final class GameAssetIndexDownloadTask extends Task<Void> {
         );
         task.setCacheRepository(dependencyManager.getCacheRepository());
         dependencies.add(task);
+    }
+
+    /// Hashes a stable index in the native backend, retaining the existing Java fallback.
+    static String hashIndex(Path file) throws IOException, InterruptedException {
+        @Nullable String executable = System.getProperty("mfcl.native.path");
+        if (executable != null && !executable.isBlank()
+                && Boolean.parseBoolean(System.getProperty("mfcl.native.assets.enabled", "true"))
+                && Boolean.parseBoolean(System.getProperty("mfcl.native.assets.hash.enabled", "true"))) {
+            try {
+                @Nullable String result = NativeBackend.hashCacheSha1(Path.of(executable), file);
+                if (result != null) return result;
+            } catch (IOException | RuntimeException ignored) {
+                // Preserve the legacy hash path for unsupported files or older workers.
+            }
+        }
+        return DigestUtils.digestToString("SHA-1", file);
     }
 
     public static class GameAssetIndexMalformedException extends IOException {

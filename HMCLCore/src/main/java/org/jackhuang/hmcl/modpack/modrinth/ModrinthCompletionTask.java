@@ -22,8 +22,10 @@ import org.jackhuang.hmcl.download.DefaultDependencyManager;
 import org.jackhuang.hmcl.download.DownloadProvider;
 import org.jackhuang.hmcl.game.DefaultGameInstance;
 import org.jackhuang.hmcl.modpack.ModpackCompletionException;
+import org.jackhuang.hmcl.nativebridge.NativeBackend;
 import org.jackhuang.hmcl.task.FileDownloadTask;
 import org.jackhuang.hmcl.task.Task;
+import org.jackhuang.hmcl.util.DigestUtils;
 import org.jackhuang.hmcl.util.gson.JsonUtils;
 import org.jackhuang.hmcl.util.io.FileUtils;
 import org.jetbrains.annotations.NotNullByDefault;
@@ -36,6 +38,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -146,15 +149,23 @@ public class ModrinthCompletionTask extends Task<Void> {
                     List.copyOf(excludedFiles));
         }
 
-        for (ModrinthManifest.File file : manifest.getFiles()) {
-            if (file.env() != null && file.env().getOrDefault("client", "required").equals("unsupported"))
-                continue;
-            if (file.downloads().isEmpty())
-                continue;
-            if (excludedFiles != null && excludedFiles.contains(file.key()))
-                continue;
+        List<ModrinthManifest.File> files = manifest.getFiles();
+        @Nullable Map<Integer, NativeBackend.ModrinthFilePlan> plan = NativeModrinthSelection.tryPlan(runDirectory, files, excludedFiles, this::isCancelled);
+        boolean @Nullable [] selection = plan == null ? NativeModrinthSelection.trySelect(files, excludedFiles, this::isCancelled) : null;
+        for (int index = 0; index < files.size(); index++) {
+            ModrinthManifest.File file = files.get(index);
+            if (plan != null) {
+                if (!plan.containsKey(index)) continue;
+            } else if (selection != null) {
+                if (!selection[index]) continue;
+            } else {
+                if (file.env() != null && file.env().getOrDefault("client", "required").equals("unsupported")) continue;
+                if (file.downloads().isEmpty()) continue;
+                if (excludedFiles != null && excludedFiles.contains(file.key())) continue;
+            }
 
-            Path filePath = runDirectory.resolve(file.path()).toAbsolutePath().normalize();
+            @Nullable NativeBackend.ModrinthFilePlan filePlan = plan == null ? null : Objects.requireNonNull(plan.get(index));
+            Path filePath = filePlan == null ? runDirectory.resolve(file.path()).toAbsolutePath().normalize() : filePlan.path();
             if (!filePath.startsWith(runDirectory))
                 throw new IOException("Unsecure path: " + file.path());
 
@@ -163,10 +174,15 @@ public class ModrinthCompletionTask extends Task<Void> {
             if (modsDirectory.equals(filePath.getParent()) && this.modManager.hasSimpleMod(FileUtils.getName(filePath)))
                 continue;
 
+            @Nullable String sha512 = file.hashes().get("sha512");
+            boolean validSha512 = filePlan != null && Objects.equals(filePlan.sha512(), sha512)
+                    ? filePlan.validSha512() : DigestUtils.isSha512Digest(sha512);
+            if (!validSha512) throw new IOException("Invalid Modrinth SHA-512 for " + file.path());
             DownloadProvider downloadProvider = dependency.getDownloadProvider();
             var task = new FileDownloadTask(
                     downloadProvider.getDownloadCandidates(file.downloads()),
-                    filePath);
+                    filePath,
+                    new FileDownloadTask.IntegrityCheck("SHA-512", Objects.requireNonNull(sha512)));
             task.setCacheRepository(dependency.getCacheRepository());
             task.setCaching(true);
             dependencies.add(task.withCounter("hmcl.modpack.download"));

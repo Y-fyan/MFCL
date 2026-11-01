@@ -220,9 +220,30 @@ public final class NetworkUtils {
     }
 
     public static URLConnection createConnection(WebURL url) throws IOException {
+        return createConnection(url, false);
+    }
+
+    /// Creates a connection that bypasses JVM and system proxy selectors.
+    /// @param url source URL
+    /// @return configured direct connection
+    /// @throws IOException if the URL cannot be opened directly
+    public static URLConnection createDirectConnection(WebURL url) throws IOException {
+        return createConnection(url, true);
+    }
+
+    /// Opens and configures a connection with the requested proxy policy.
+    /// @param url source URL
+    /// @param direct whether to force a direct connection
+    /// @return configured connection
+    /// @throws IOException if opening the connection fails
+    private static URLConnection createConnection(WebURL url, boolean direct) throws IOException {
         URLConnection connection;
         try {
-            connection = url.toURL().openConnection();
+            URL target = url.toURL();
+            connection = direct && !"file".equalsIgnoreCase(target.getProtocol())
+                    ? target.openConnection(Proxy.NO_PROXY) : target.openConnection();
+        } catch (UnsupportedOperationException e) {
+            throw new IOException("This URL protocol does not support direct connections", e);
         } catch (IllegalArgumentException | MalformedURLException e) {
             throw new IOException(e);
         }
@@ -239,6 +260,14 @@ public final class NetworkUtils {
 
     public static HttpURLConnection createHttpConnection(WebURL url) throws IOException {
         return (HttpURLConnection) createConnection(url);
+    }
+
+    /// Creates a direct HTTP connection with the standard launcher headers.
+    /// @param url HTTP or HTTPS URL
+    /// @return direct HTTP connection
+    /// @throws IOException if the URL cannot be opened
+    public static HttpURLConnection createDirectHttpConnection(WebURL url) throws IOException {
+        return (HttpURLConnection) createDirectConnection(url);
     }
 
     public static HttpURLConnection createHttpConnection(String url) throws IOException {
@@ -324,6 +353,23 @@ public final class NetworkUtils {
      * @see <a href="https://github.com/curl/curl/issues/473">Issue with libcurl</a>
      */
     public static HttpURLConnection resolveConnection(HttpURLConnection conn) throws IOException {
+        return resolveConnection(conn, false);
+    }
+
+    /// Follows redirects without consulting a proxy selector for any target.
+    /// @param conn initial direct connection
+    /// @return final direct connection
+    /// @throws IOException if a redirect or connection fails
+    public static HttpURLConnection resolveDirectConnection(HttpURLConnection conn) throws IOException {
+        return resolveConnection(conn, true);
+    }
+
+    /// Follows redirects using the requested connection policy.
+    /// @param conn initial connection
+    /// @param direct whether all redirects must be direct
+    /// @return final connection
+    /// @throws IOException if a redirect or connection fails
+    private static HttpURLConnection resolveConnection(HttpURLConnection conn, boolean direct) throws IOException {
         final boolean useCache = conn.getUseCaches();
         int redirect = 0;
         while (true) {
@@ -343,7 +389,8 @@ public final class NetworkUtils {
                 }
 
                 WebURL redirectedUrl = WebURL.of(conn.getURL()).resolve(newURL);
-                HttpURLConnection redirected = (HttpURLConnection) redirectedUrl.toURL().openConnection();
+                HttpURLConnection redirected = (HttpURLConnection) (direct
+                        ? redirectedUrl.toURL().openConnection(Proxy.NO_PROXY) : redirectedUrl.toURL().openConnection());
                 properties.forEach((key, value) -> value.forEach(element -> redirected.addRequestProperty(key, element)));
                 injectApiKey(redirectedUrl, redirected);
                 redirected.setRequestMethod(method);
@@ -473,7 +520,7 @@ public final class NetworkUtils {
 
     /// Reads a successful HTTP response's filename from its disposition header or final URL.
     public static String detectFileName(WebURL url) throws IOException {
-        HttpURLConnection conn = resolveConnection(createHttpConnection(url));
+        HttpURLConnection conn = resolveDirectConnection(createDirectHttpConnection(url));
         int code = conn.getResponseCode();
         if (code / 100 == 4)
             throw new FileNotFoundException();

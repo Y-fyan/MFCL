@@ -26,9 +26,13 @@ import org.glavo.url.WebURL;
 import org.glavo.uuid.UUIDs;
 import org.jackhuang.hmcl.auth.AuthenticationException;
 import org.jackhuang.hmcl.auth.OAuth;
+import org.jackhuang.hmcl.nativebridge.NativeBackend;
 import org.jackhuang.hmcl.auth.ServerDisconnectException;
 import org.jackhuang.hmcl.auth.ServerResponseMalformedException;
+import org.jackhuang.hmcl.auth.NoSelectedCharacterException;
+import org.jetbrains.annotations.Nullable;
 import org.jackhuang.hmcl.auth.yggdrasil.CompleteGameProfile;
+import org.jackhuang.hmcl.auth.yggdrasil.NativeYggdrasilProfile;
 import org.jackhuang.hmcl.auth.yggdrasil.RemoteAuthenticationException;
 import org.jackhuang.hmcl.auth.yggdrasil.Texture;
 import org.jackhuang.hmcl.auth.yggdrasil.TextureType;
@@ -40,6 +44,9 @@ import org.jackhuang.hmcl.util.javafx.ObservableOptionalCache;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.Proxy;
+import java.net.ProxySelector;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -76,8 +83,16 @@ public class MicrosoftService {
 
     public MicrosoftSession authenticate(OAuth.GrantFlow flow) throws AuthenticationException {
         try {
+            @Nullable NativeMicrosoftAuth nativeAuth = flow == OAuth.GrantFlow.DEVICE
+                    ? configuredNativeAuth("microsoft_device_begin", "microsoft_device_poll", "microsoft_exchange")
+                    : configuredNativeAuth("microsoft_authorization_url", "microsoft_authorization_token", "microsoft_exchange");
+            if (nativeAuth != null && flow == OAuth.GrantFlow.DEVICE) return nativeAuth.authenticate();
+            if (nativeAuth != null && flow == OAuth.GrantFlow.AUTHORIZATION_CODE) return nativeAuth.authenticateAuthorizationCode();
             OAuth.Result result = OAuth.MICROSOFT.authenticate(flow, new OAuth.Options(SCOPE, callback));
             return authenticateViaLiveAccessToken(result.accessToken(), result.refreshToken());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new NoSelectedCharacterException();
         } catch (IOException e) {
             throw new ServerDisconnectException(e);
         } catch (JsonParseException e) {
@@ -87,13 +102,59 @@ public class MicrosoftService {
 
     public MicrosoftSession refresh(MicrosoftSession oldSession) throws AuthenticationException {
         try {
+            @Nullable NativeMicrosoftAuth nativeAuth = configuredNativeAuth("microsoft_refresh", "microsoft_exchange");
+            if (nativeAuth != null) {
+                return nativeAuth.refresh(oldSession);
+            }
             OAuth.Result result = OAuth.MICROSOFT.refresh(oldSession.refreshToken(), new OAuth.Options(SCOPE, callback));
             return authenticateViaLiveAccessToken(result.accessToken(), result.refreshToken());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new NoSelectedCharacterException();
         } catch (IOException e) {
             throw new ServerDisconnectException(e);
         } catch (JsonParseException e) {
             throw new ServerResponseMalformedException(e);
         }
+    }
+
+    /// Selects a native authentication coordinator only when network policy and capabilities match.
+    ///
+    /// Proxy-managed connections remain on Java until Rust can honor the same proxy selector and
+    /// authenticator. Capability failure falls back before any credentials are sent or rotated.
+    ///
+    /// @param capabilities backend operations required by the requested flow
+    /// @return coordinator, or `null` when the Java authentication path should be used
+    /// @throws InterruptedException if the capability probe is interrupted
+    @Nullable NativeMicrosoftAuth configuredNativeAuth(String... capabilities) throws InterruptedException {
+        @Nullable String path = System.getProperty("mfcl.native.path");
+        if (path == null || path.isBlank() || !Boolean.parseBoolean(System.getProperty("mfcl.native.microsoft.enabled", "true"))) return null;
+        try {
+            if (!usesDirectConnections(ProxySelector.getDefault())) return null;
+            Path executable = Path.of(path);
+            return NativeBackend.supportsCapabilities(executable, capabilities) ? new NativeMicrosoftAuth(executable, callback) : null;
+        } catch (IOException | RuntimeException e) {
+            LOG.warning("Native Microsoft authentication is unavailable; using Java path");
+            return null;
+        }
+    }
+
+    /// Checks that all authentication endpoints use a direct JVM connection.
+    ///
+    /// @param selector current JVM proxy selector, or `null` for direct connections
+    /// @return whether every endpoint is exclusively direct
+    static boolean usesDirectConnections(@Nullable ProxySelector selector) {
+        if (selector == null) return true;
+        for (String endpoint : List.of("https://login.live.com/", "https://login.microsoftonline.com/",
+                "https://user.auth.xboxlive.com/", "https://xsts.auth.xboxlive.com/", "https://api.minecraftservices.com/")) {
+            try {
+                @Nullable List<Proxy> proxies = selector.select(URI.create(endpoint));
+                if (proxies == null || proxies.size() != 1 || proxies.get(0).type() != Proxy.Type.DIRECT) return false;
+            } catch (RuntimeException e) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private String getUhs(XBoxLiveAuthenticationResponse response, String existingUhs) throws AuthenticationException {
@@ -182,9 +243,14 @@ public class MicrosoftService {
 
     public Optional<MinecraftProfileResponse> getCompleteProfile(String authorization) throws AuthenticationException {
         try {
+            @Nullable MinecraftProfileResponse nativeProfile = NativeMicrosoftProfile.tryCompleteProfile(authorization);
+            if (nativeProfile != null) return Optional.of(nativeProfile);
             return Optional.ofNullable(
                     HttpRequest.GET("https://api.minecraftservices.com/minecraft/profile")
                             .authorization(authorization).getJson(MinecraftProfileResponse.class));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ServerDisconnectException(e);
         } catch (IOException e) {
             throw new ServerDisconnectException(e);
         } catch (JsonParseException e) {
@@ -201,8 +267,13 @@ public class MicrosoftService {
         }
 
         try {
+            @Nullable Boolean nativeResult = NativeMicrosoftProfile.tryValidate(tokenType, accessToken);
+            if (nativeResult != null) return nativeResult;
             getMinecraftProfile(tokenType, accessToken);
             return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ServerDisconnectException(e);
         } catch (ResponseCodeException e) {
             return false;
         } catch (IOException e) {
@@ -270,11 +341,40 @@ public class MicrosoftService {
 
     public Optional<CompleteGameProfile> getCompleteGameProfile(UUID uuid) throws AuthenticationException {
         Objects.requireNonNull(uuid);
-
+        try {
+            @Nullable CompleteGameProfile nativeProfile = NativeYggdrasilProfile.tryMicrosoftProfile(uuid);
+            if (nativeProfile != null) return Optional.of(nativeProfile);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ServerDisconnectException(e);
+        }
         return Optional.ofNullable(GSON.fromJson(request("https://sessionserver.mojang.com/session/minecraft/profile/" + UUIDs.toCompactString(uuid), null), CompleteGameProfile.class));
     }
 
+    /// Uploads a skin once using the native backend when the selected file is supported.
+    /// @param accessToken Minecraft access token
+    /// @param isSlim whether the slim model is selected
+    /// @param file selected skin file
+    /// @throws AuthenticationException if upload fails
+    /// @throws UnsupportedOperationException if the service does not support uploads
     public void uploadSkin(String accessToken, boolean isSlim, Path file) throws AuthenticationException, UnsupportedOperationException {
+        try {
+            if ("png".equalsIgnoreCase(FileUtils.getExtension(file)) && Files.isRegularFile(file)
+                    && Files.size(file) <= 8L * 1024 * 1024
+                    && supportsNativeSkinPath(file)) {
+                @Nullable NativeMicrosoftAuth nativeAuth = configuredNativeAuth("microsoft_upload_skin");
+                if (nativeAuth != null) {
+                    nativeAuth.uploadSkin(accessToken, isSlim, file);
+                    return;
+                }
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AuthenticationException(e);
+        } catch (IOException e) {
+            // Never retry a request that the native process may already have sent.
+            throw new AuthenticationException(e);
+        }
         try {
             HttpURLConnection con = NetworkUtils.createHttpConnection("https://api.minecraftservices.com/minecraft/profile/skins");
             con.setRequestMethod("POST");
@@ -299,6 +399,17 @@ public class MicrosoftService {
         } catch (IOException | JsonParseException e) {
             throw new AuthenticationException(e);
         }
+    }
+
+    /// Checks that a selected skin path can be sent to Rust without changing its filesystem bytes.
+    /// @param file selected skin path
+    /// @return whether the default filesystem path round-trips through UTF-8
+    private static boolean supportsNativeSkinPath(Path file) {
+        try {
+            if (file.getFileSystem() != java.nio.file.FileSystems.getDefault()) return false;
+            Path absolute = file.toAbsolutePath(); String text = absolute.toString();
+            return java.nio.charset.StandardCharsets.UTF_8.newEncoder().canEncode(text) && Path.of(text).equals(absolute);
+        } catch (RuntimeException e) { return false; }
     }
 
     private static String request(String url, Object payload) throws AuthenticationException {

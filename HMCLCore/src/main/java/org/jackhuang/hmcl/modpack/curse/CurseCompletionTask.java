@@ -38,6 +38,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -144,11 +145,14 @@ public final class CurseCompletionTask extends Task<Void> {
 
         // Because in China, Curse is too difficult to visit,
         // if failed, ignore it and retry next time.
+        List<CurseManifestFile> originalFiles = manifest.files();
+        boolean @Nullable [] resolveSelection = NativeCurseSelection.trySelect(originalFiles, null, true, this::isCancelled);
         CurseManifest newManifest = manifest.setFiles(
-                manifest.files().parallelStream()
-                        .map(file -> {
-                            updateProgress(finished.incrementAndGet(), manifest.files().size());
-                            if (StringUtils.isBlank(file.fileName()) || file.url() == null) {
+                java.util.stream.IntStream.range(0, originalFiles.size()).parallel()
+                        .mapToObj(index -> {
+                            CurseManifestFile file = originalFiles.get(index);
+                            updateProgress(finished.incrementAndGet(), originalFiles.size());
+                            if (resolveSelection == null ? (StringUtils.isBlank(file.fileName()) || file.url() == null) : resolveSelection[index]) {
                                 try {
                                     RemoteAddon.File remoteFile = CurseForgeRemoteAddonRepository.getInstance().getAddonFile(Integer.toString(file.projectID()), Integer.toString(file.fileID()));
                                     return file
@@ -180,18 +184,26 @@ public final class CurseCompletionTask extends Task<Void> {
         Path resourcePacksRoot = versionRoot.resolve("resourcepacks");
         Path shaderPacksRoot = versionRoot.resolve("shaderpacks");
         finished.set(0);
-        dependencies = newManifest.files()
-                .stream().parallel()
-                .filter(f -> f.fileName() != null)
-                .filter(f -> excludedFiles == null || !excludedFiles.contains(f.key()))
-                .flatMap(f -> {
+        List<CurseManifestFile> resolvedFiles = newManifest.files();
+        @Nullable Map<Integer, NativeCurseSelection.DownloadPlan> downloadPlan = NativeCurseSelection.tryPlan(resolvedFiles, excludedFiles, this::isCancelled);
+        boolean @Nullable [] downloadSelection = downloadPlan == null
+                ? NativeCurseSelection.trySelect(resolvedFiles, excludedFiles, false, this::isCancelled) : null;
+        dependencies = java.util.stream.IntStream.range(0, resolvedFiles.size()).parallel()
+                .filter(index -> downloadPlan != null ? downloadPlan.containsKey(index) : downloadSelection == null
+                        ? resolvedFiles.get(index).fileName() != null && (excludedFiles == null || !excludedFiles.contains(resolvedFiles.get(index).key()))
+                        : downloadSelection[index])
+                .boxed()
+                .flatMap(index -> {
+                    CurseManifestFile f = resolvedFiles.get(index);
                     try {
                         Path path = guessFilePath(f, dependency.getDownloadProvider(), resourcePacksRoot, shaderPacksRoot);
                         if (path == null) {
                             return Stream.empty();
                         }
 
-                        var task = new FileDownloadTask(f.url(), path, f.getIntegrityCheck());
+                        @Nullable FileDownloadTask.IntegrityCheck integrity = downloadPlan == null ? f.getIntegrityCheck()
+                                : Objects.requireNonNull(downloadPlan.get(index)).currentIntegrity(f);
+                        var task = new FileDownloadTask(f.url(), path, integrity);
                         task.setCacheRepository(dependency.getCacheRepository());
                         task.setCaching(true);
                         return Stream.<Task<?>>of(task.withCounter("hmcl.modpack.download"));

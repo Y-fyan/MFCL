@@ -25,6 +25,7 @@ import org.jackhuang.hmcl.util.gson.JsonUtils;
 import org.jackhuang.hmcl.util.io.FileUtils;
 import org.jackhuang.hmcl.util.io.NetworkUtils;
 import org.jackhuang.hmcl.util.io.UrlResponseInfo;
+import org.jackhuang.hmcl.nativebridge.NativeBackend;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
@@ -41,6 +42,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileTime;
+import java.nio.file.attribute.BasicFileAttributeView;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFileAttributes;
+import java.nio.file.attribute.UserDefinedFileAttributeView;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -105,12 +110,25 @@ public class CacheRepository {
         return getCacheDirectory().resolve(algorithm).resolve(hash.substring(0, 2)).resolve(hash);
     }
 
-    protected boolean fileExists(String algorithm, String hash) {
-        if (!DigestUtils.isSha1Digest(hash)) return false;
-        Path file = getFile(algorithm, hash);
+    /// Checks only whether a cache candidate exists; callers must still verify its content before use.
+    public boolean mayHaveCachedFile(@Nullable Path candidate, String algorithm, String hash) {
+        if (!supportedHash(algorithm, hash)) return false;
+        return Files.exists(getFile(algorithm, hash)) || (candidate != null && Files.exists(candidate));
+    }
+
+    /// Returns whether a supported digest identifies an intact cached file.
+    /// @param algorithm checksum algorithm
+    /// @param hash expected digest
+    /// @return whether the cached file exists and matches
+    protected boolean fileExists(String algorithm, @Nullable String hash) {
+        if (!supportedHash(algorithm, hash)) return false;
+        String expected = Objects.requireNonNull(hash);
+        Path file = getFile(algorithm, expected);
         if (Files.exists(file)) {
             try {
-                return DigestUtils.digestToString(algorithm, file).equalsIgnoreCase(hash);
+                @Nullable Boolean nativeResult = tryNativeCacheVerification(file, algorithm, expected);
+                if (nativeResult != null) return nativeResult;
+                return DigestUtils.digestToString(algorithm, file).equalsIgnoreCase(expected);
             } catch (IOException e) {
                 return false;
             }
@@ -119,37 +137,182 @@ public class CacheRepository {
         }
     }
 
-    private void checkHash(String hash) throws IOException {
-        if (!DigestUtils.isSha1Digest(hash)) {
-            throw new IOException("Not SHA-1 checksum: " + hash);
+    /// Verifies a stable cached file in Rust for supported digest algorithms.
+    /// @param file cached file path
+    /// @param algorithm expected digest algorithm
+    /// @param hash expected digest value
+    /// @return verification result, or null when Java must perform the check
+    protected static @Nullable Boolean tryNativeCacheVerification(Path file, String algorithm, String hash) {
+        @Nullable String executable = System.getProperty("mfcl.native.path");
+        if (executable == null || executable.isBlank()
+                || !Boolean.parseBoolean(System.getProperty("mfcl.native.cache.enabled", "true"))
+                || file.getFileSystem() != java.nio.file.FileSystems.getDefault()) return null;
+        try {
+            Path absolute = file.toAbsolutePath(); String value = absolute.toString();
+            // Avoid a process round trip for small files, which dominate asset caches.
+            if (Files.size(absolute) < 1024 * 1024) return null;
+            if (!java.nio.charset.StandardCharsets.UTF_8.newEncoder().canEncode(value) || !Path.of(value).equals(absolute)) return null;
+            Path backend = Path.of(executable);
+            if ("SHA-1".equalsIgnoreCase(algorithm) && DigestUtils.isSha1Digest(hash)) {
+                var input = new NativeBackend.FileHashInput(0, absolute, hash);
+                @Nullable NativeBackend.FileHashResult result = NativeBackend.checkFileHashes(backend, List.of(input),
+                        () -> Thread.currentThread().isInterrupted()).get(0);
+                return result != null && NativeBackend.isFileHashObservationCurrent(absolute, result) ? result.matches() : null;
+            }
+            if ("SHA-512".equalsIgnoreCase(algorithm) && DigestUtils.isSha512Digest(hash)) {
+                @Nullable Map<String, String> result = NativeBackend.hashModpackFile(backend, absolute,
+                        () -> Thread.currentThread().isInterrupted());
+                return result == null ? null : hash.equalsIgnoreCase(result.get("sha512"));
+            }
+            if ("SHA-256".equalsIgnoreCase(algorithm) && isHexDigest(hash, 64))
+                return NativeBackend.checkCacheDigest(backend, absolute, "SHA-256", hash);
+            if ("MD5".equalsIgnoreCase(algorithm) && isHexDigest(hash, 32))
+                return NativeBackend.checkCacheDigest(backend, absolute, "MD5", hash);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (IOException | RuntimeException ignored) {
+            // Existing Java verification remains authoritative when native inspection is unavailable.
         }
+        return null;
+    }
+
+    /// Computes a stable SHA-1 in Rust for a sufficiently large cache source.
+    /// @param file file to inspect
+    /// @return lowercase digest, or null for Java fallback
+    protected static @Nullable String tryNativeCacheSha1(Path file) {
+        @Nullable String executable = System.getProperty("mfcl.native.path");
+        if (executable == null || executable.isBlank()
+                || !Boolean.parseBoolean(System.getProperty("mfcl.native.cache.enabled", "true"))
+                || file.getFileSystem() != java.nio.file.FileSystems.getDefault()) return null;
+        try {
+            if (Files.size(file) < 1024 * 1024) return null;
+            return NativeBackend.hashCacheSha1(Path.of(executable), file);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (IOException | RuntimeException ignored) {
+            // The original Java digest remains available when native inspection fails.
+        }
+        return null;
+    }
+
+    /// Accepts legacy SHA-1-length keys and supported extended digest keys.
+    /// @param algorithm checksum algorithm
+    /// @param hash digest to validate
+    /// @return whether the key is supported
+    private static boolean supportedHash(String algorithm, @Nullable String hash) {
+        return DigestUtils.isSha1Digest(hash)
+                || ("SHA-512".equalsIgnoreCase(algorithm) && DigestUtils.isSha512Digest(hash))
+                || ("SHA-256".equalsIgnoreCase(algorithm) && isHexDigest(hash, 64))
+                || ("MD5".equalsIgnoreCase(algorithm) && isHexDigest(hash, 32));
+    }
+
+    /// Checks an ASCII hexadecimal digest of the requested length.
+    /// @param value candidate digest, or null
+    /// @param length required character count
+    /// @return whether the digest is valid
+    private static boolean isHexDigest(@Nullable String value, int length) {
+        if (value == null || value.length() != length) return false;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) return false;
+        }
+        return true;
+    }
+
+    /// Rejects unsupported cache keys before constructing paths.
+    /// @param algorithm checksum algorithm
+    /// @param hash digest to validate
+    /// @throws IOException if the key is unsupported
+    private void checkHash(String algorithm, String hash) throws IOException {
+        if (!supportedHash(algorithm, hash)) throw new IOException("Unsupported checksum for " + algorithm + ": " + hash);
     }
 
     public void tryCacheFile(Path path, String algorithm, String hash) throws IOException {
-        checkHash(hash);
+        checkHash(algorithm, hash);
 
         Path cache = getFile(algorithm, hash);
         if (Files.isRegularFile(cache)) return;
+        if (tryNativeCacheCopy(path, cache, algorithm, hash)) return;
         FileUtils.copyFile(path, cache);
     }
 
     public Path cacheFile(Path path, String algorithm, String hash) throws IOException {
-        checkHash(hash);
+        checkHash(algorithm, hash);
 
         Path cache = getFile(algorithm, hash);
+        if (tryNativeCacheCopy(path, cache, algorithm, hash)) return cache;
         FileUtils.copyFile(path, cache);
         return cache;
     }
 
-    public Optional<Path> checkExistentFile(@Nullable Path original, String algorithm, String hash) {
+    /// Stages a verified cache copy in Rust and publishes it only after Java checks file identity and attributes.
+    /// @param source existing source file
+    /// @param cache target cache file
+    /// @param algorithm expected digest algorithm
+    /// @param hash expected digest
+    /// @return true when the cache entry was published, false for Java fallback
+    private static boolean tryNativeCacheCopy(Path source, Path cache, String algorithm, String hash) {
+        @Nullable String executable = System.getProperty("mfcl.native.path");
+        if (executable == null || executable.isBlank()
+                || !Boolean.parseBoolean(System.getProperty("mfcl.native.cache.enabled", "true"))
+                || source.getFileSystem() != java.nio.file.FileSystems.getDefault()
+                || cache.getFileSystem() != java.nio.file.FileSystems.getDefault()) return false;
+        String normalizedAlgorithm;
+        if ("SHA-1".equalsIgnoreCase(algorithm) && DigestUtils.isSha1Digest(hash)) normalizedAlgorithm = "SHA-1";
+        else if ("SHA-512".equalsIgnoreCase(algorithm) && DigestUtils.isSha512Digest(hash)) normalizedAlgorithm = "SHA-512";
+        else if ("SHA-256".equalsIgnoreCase(algorithm) && isHexDigest(hash, 64)) normalizedAlgorithm = "SHA-256";
+        else if ("MD5".equalsIgnoreCase(algorithm) && isHexDigest(hash, 32)) normalizedAlgorithm = "MD5";
+        else return false;
+        @Nullable Path stageDirectory = null;
+        try {
+            if (!Files.isRegularFile(source) || Files.size(source) < 1024 * 1024
+                    || Files.exists(cache, java.nio.file.LinkOption.NOFOLLOW_LINKS)) return false;
+            @Nullable Object mode = Files.getAttribute(source, "unix:mode");
+            // PosixFilePermission does not represent setuid, setgid, or sticky bits.
+            if (!(mode instanceof Number number) || (number.intValue() & 07000) != 0) return false;
+            @Nullable UserDefinedFileAttributeView extra = Files.getFileAttributeView(source, UserDefinedFileAttributeView.class);
+            if (extra != null && !extra.list().isEmpty()) return false;
+            if (Files.getFileAttributeView(source, java.nio.file.attribute.AclFileAttributeView.class) != null) return false;
+            @Nullable Path parent = cache.toAbsolutePath().getParent();
+            if (parent == null) return false;
+            Files.createDirectories(parent);
+            stageDirectory = Files.createTempDirectory(parent, ".mfcl-cache-stage-");
+            Path staged = stageDirectory.resolve("payload");
+            @Nullable NativeBackend.FileHashResult observation = NativeBackend.stageCacheCopy(
+                    Path.of(executable), source, staged, normalizedAlgorithm, hash);
+            if (observation == null || !NativeBackend.isFileHashObservationCurrent(source, observation)) return false;
+            PosixFileAttributes sourceAttributes = Files.readAttributes(source, PosixFileAttributes.class);
+            PosixFileAttributes stagedAttributes = Files.readAttributes(staged, PosixFileAttributes.class);
+            if (!sourceAttributes.owner().equals(stagedAttributes.owner()) || !sourceAttributes.group().equals(stagedAttributes.group())) return false;
+            @Nullable PosixFileAttributeView posix = Files.getFileAttributeView(staged, PosixFileAttributeView.class);
+            @Nullable BasicFileAttributeView basic = Files.getFileAttributeView(staged, BasicFileAttributeView.class);
+            if (posix == null || basic == null) return false;
+            posix.setPermissions(sourceAttributes.permissions());
+            basic.setTimes(sourceAttributes.lastModifiedTime(), sourceAttributes.lastAccessTime(), sourceAttributes.creationTime());
+            if (!NativeBackend.isFileHashObservationCurrent(source, observation)) return false;
+            Files.move(staged, cache);
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (IOException | RuntimeException ignored) {
+            // Private staging can be discarded before the existing Java copy is attempted.
+        } finally {
+            if (stageDirectory != null) FileUtils.deleteDirectoryQuietly(stageDirectory);
+        }
+        return false;
+    }
+
+    public Optional<Path> checkExistentFile(@Nullable Path original, String algorithm, @Nullable String hash) {
         if (fileExists(algorithm, hash))
-            return Optional.of(getFile(algorithm, hash));
+            return Optional.of(getFile(algorithm, Objects.requireNonNull(hash)));
 
         if (original != null && Files.exists(original)) {
             if (hash != null) {
                 try {
-                    String checksum = DigestUtils.digestToString(algorithm, original);
-                    if (checksum.equalsIgnoreCase(hash))
+                    @Nullable Boolean nativeResult = tryNativeCacheVerification(original, algorithm, hash);
+                    boolean matches = nativeResult != null ? nativeResult
+                            : DigestUtils.digestToString(algorithm, original).equalsIgnoreCase(hash);
+                    if (matches)
                         return Optional.of(restore(original, () -> cacheFile(original, algorithm, hash)));
                 } catch (IOException e) {
                     // we cannot check the hashcode.
@@ -189,7 +352,8 @@ public class CacheRepository {
 
         Path file = getFile(SHA1, eTagItem.hash);
         if (Files.getLastModifiedTime(file).toMillis() != eTagItem.localLastModified) {
-            String hash = DigestUtils.digestToString(SHA1, file);
+            @Nullable String nativeHash = tryNativeCacheSha1(file);
+            String hash = nativeHash == null ? DigestUtils.digestToString(SHA1, file) : nativeHash;
             if (!Objects.equals(hash, eTagItem.hash))
                 throw new IOException("This file is modified");
         }
@@ -253,7 +417,8 @@ public class CacheRepository {
 
     public Path cacheRemoteFile(UrlResponseInfo info, Path downloaded) throws IOException {
         return cacheData(info, () -> {
-            String hash = DigestUtils.digestToString(SHA1, downloaded);
+            @Nullable String nativeHash = tryNativeCacheSha1(downloaded);
+            String hash = nativeHash == null ? DigestUtils.digestToString(SHA1, downloaded) : nativeHash;
             Path cached = cacheFile(downloaded, SHA1, hash);
             return new CacheResult(hash, cached);
         });

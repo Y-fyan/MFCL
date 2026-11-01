@@ -95,6 +95,20 @@ public final class CacheFileTask extends FetchTask<Path> {
         }
     }
 
+    /// Supplies the expected digest to the shared native download path.
+    ///
+    /// Remote-cache-only requests without a known digest retain the Java ETag path.
+    ///
+    /// @return expected SHA-1, or `null` when no digest is available
+    @Override
+    protected @Nullable String nativeExpectedSha1() {
+        return expectedSha1;
+    }
+
+    /// Remote cache downloads can consume native response headers and conditional responses.
+    /// @return true
+    @Override protected boolean supportsNativeMetadata() { return true; }
+
     /// Selects a verified content-addressed entry or the applicable remote-cache policy.
     ///
     /// @return the cache action to perform before downloading

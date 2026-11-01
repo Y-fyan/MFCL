@@ -25,6 +25,8 @@ import org.jackhuang.hmcl.game.DefaultGameInstance;
 import org.jackhuang.hmcl.addon.LocalAddonManager;
 import org.jackhuang.hmcl.game.GameComponentType;
 import org.jackhuang.hmcl.modpack.ModpackConfiguration;
+import org.jackhuang.hmcl.modpack.NativeManagedRemoval;
+import org.jackhuang.hmcl.nativebridge.NativeBackend;
 import org.jackhuang.hmcl.task.FileDownloadTask;
 import org.jackhuang.hmcl.task.GetTask;
 import org.jackhuang.hmcl.task.Task;
@@ -166,9 +168,12 @@ public class ServerModpackCompletionTask extends Task<Void> {
         Path runDirectory = instance.getRunDirectory().toAbsolutePath().normalize();
         Path modsDirectory = runDirectory.resolve("mods");
 
+        List<ModpackConfiguration.FileInformation> newFiles = remoteManifest.getFiles();
+        Map<Integer, NativeBackend.FileHashResult> observations = NativeServerFileHashes.inspect(rootPath, modsDirectory, files, newFiles, this::isCancelled);
         int total = 0;
         // for files in new modpack
-        for (ModpackConfiguration.FileInformation file : remoteManifest.getFiles()) {
+        for (int index = 0; index < newFiles.size(); index++) {
+            ModpackConfiguration.FileInformation file = newFiles.get(index);
             Path actualPath = rootPath.resolve(file.getPath()).toAbsolutePath().normalize();
             String fileName = actualPath.getFileName().toString();
 
@@ -193,9 +198,8 @@ public class ServerModpackCompletionTask extends Task<Void> {
                 download = true;
             } else {
                 // If user modified this entry file, we will not replace this file since this modified file is that user expects.
-                String fileHash = DigestUtils.digestToString("SHA-1", actualPath);
                 String oldHash = files.get(file.getPath()).getHash();
-                download = !Objects.equals(oldHash, file.getHash()) && Objects.equals(oldHash, fileHash);
+                download = shouldReplaceExisting(actualPath, oldHash, file.getHash(), observations.get(index));
             }
 
             if (download) {
@@ -208,15 +212,48 @@ public class ServerModpackCompletionTask extends Task<Void> {
             }
         }
 
-        // If old modpack have this entry, and new modpack deleted it. Delete this file.
-        for (ModpackConfiguration.FileInformation file : manifest.getManifest().getFiles()) {
-            Path actualPath = rootPath.resolve(file.getPath());
-            if (Files.exists(actualPath) && !remoteFiles.contains(file.getPath()))
-                Files.deleteIfExists(actualPath);
-        }
+        removeObsoleteFiles(rootPath, manifest.getManifest().getFiles(), remoteFiles, this::isCancelled);
 
         getProperties().put("total", dependencies.size());
         notifyPropertiesChanged();
+    }
+
+    /// Preflights and removes previous server-pack files absent from the remote manifest.
+    /// @param root normalized absolute instance root
+    /// @param oldFiles previous manifest entries
+    /// @param remotePaths paths in the remote manifest
+    /// @param cancelled owning task cancellation predicate
+    /// @throws IOException if a removal is unsafe or fails
+    /// @throws InterruptedException if cancelled
+    static void removeObsoleteFiles(Path root, List<ModpackConfiguration.FileInformation> oldFiles,
+            Set<String> remotePaths, java.util.function.BooleanSupplier cancelled) throws IOException, InterruptedException {
+        List<Path> pending = new ArrayList<>();
+        for (ModpackConfiguration.FileInformation file : oldFiles) {
+            if (cancelled.getAsBoolean()) throw new InterruptedException();
+            Path actual = root.resolve(file.getPath());
+            if (Files.exists(actual) && !remotePaths.contains(file.getPath()))
+                pending.add(NativeManagedRemoval.validateRemovalPath(root, file.getPath()));
+        }
+        NativeManagedRemoval.removeValidated(root, pending, cancelled);
+    }
+
+    /// Preserves user-modified files using a current native observation or Java hashing.
+    /// @param file existing file
+    /// @param oldHash previous manifest digest
+    /// @param newHash replacement manifest digest
+    /// @param observation optional native SHA-1 observation
+    /// @return whether the existing file should be replaced
+    /// @throws IOException if Java hashing fails
+    static boolean shouldReplaceExisting(Path file, @Nullable String oldHash, @Nullable String newHash,
+            @Nullable NativeBackend.FileHashResult observation) throws IOException {
+        boolean unmodified;
+        if (observation != null && Objects.equals(oldHash, observation.expectedSha1())
+                && NativeBackend.isFileHashObservationCurrent(file, observation)) {
+            unmodified = observation.matches();
+        } else {
+            unmodified = Objects.equals(oldHash, DigestUtils.digestToString("SHA-1", file));
+        }
+        return !Objects.equals(oldHash, newHash) && unmodified;
     }
 
     @Override

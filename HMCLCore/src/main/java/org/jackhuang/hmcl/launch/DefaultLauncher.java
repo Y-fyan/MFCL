@@ -21,6 +21,8 @@ import org.glavo.uuid.UUIDs;
 import org.jackhuang.hmcl.addon.mod.ModLoaderType;
 import org.jackhuang.hmcl.auth.AuthInfo;
 import org.jackhuang.hmcl.game.*;
+import org.jackhuang.hmcl.nativebridge.NativeBackend;
+import org.jackhuang.hmcl.nativebridge.NativeLaunch;
 import org.jackhuang.hmcl.util.Lang;
 import org.jackhuang.hmcl.util.ServerAddress;
 import org.jackhuang.hmcl.util.StringUtils;
@@ -102,20 +104,15 @@ public class DefaultLauncher extends Launcher {
 
         res.addAllWithoutParsingAndReadExternal(options.getOverrideJavaArguments());
 
-        if (options.getMaxMemory() != null && options.getMaxMemory() > 0)
-            res.addDefault("-Xmx", options.getMaxMemory() + "m");
-
-        if (options.getMinMemory() != null && options.getMinMemory() > 0
-                && (options.getMaxMemory() == null || options.getMinMemory() <= options.getMaxMemory()))
-            res.addDefault("-Xms", options.getMinMemory() + "m");
-
-        if (options.getMetaspace() != null && options.getMetaspace() > 0)
-            if (options.getJava().getParsedVersion() < 8)
-                res.addDefault("-XX:PermSize=", options.getMetaspace() + "m");
-            else
-                res.addDefault("-XX:MetaspaceSize=", options.getMetaspace() + "m");
-
-        res.addAllDefaultWithoutParsing(options.getJavaArguments());
+        @Nullable List<NativeJvmDefaults.Addition> initialDefaults = NativeJvmDefaults.tryPlanInitial(res,
+                options.getJava().getParsedVersion(), options.getMinMemory(), options.getMaxMemory(),
+                options.getMetaspace(), options.getJavaArguments());
+        if (initialDefaults == null) {
+            appendInitialJvmDefaults(res, options.getJava().getParsedVersion(), options.getMinMemory(),
+                    options.getMaxMemory(), options.getMetaspace(), options.getJavaArguments());
+        } else for (NativeJvmDefaults.Addition addition : initialDefaults) {
+            if (addition.parse()) res.add(addition.argument()); else res.addWithoutParsing(addition.argument());
+        }
 
         Charset encoding = OperatingSystem.NATIVE_CHARSET;
         String fileEncoding = res.addDefault("-Dfile.encoding=", encoding.name());
@@ -149,114 +146,25 @@ public class DefaultLauncher extends Launcher {
         if (!options.isNoGeneratedJVMArgs()) {
             appendJvmArgs(res);
 
-            Path clientJar = instance.getInstanceJarFile();
-
-            res.addDefault("-Dminecraft.client.jar=", FileUtils.getAbsolutePath(clientJar));
-
+            String clientJar = FileUtils.getAbsolutePath(instance.getInstanceJarFile());
+            @Nullable String dockName = null;
+            @Nullable String dockIcon = null;
             if (OperatingSystem.CURRENT_OS == OperatingSystem.MACOS) {
-                res.addDefault("-Xdock:name=", "Minecraft " + manifest.id());
-                instance.getAssetObject(manifest.getAssetIndex().getId(), "icons/minecraft.icns")
-                        .ifPresent(minecraftIcns -> {
-                            res.addDefault("-Xdock:icon=", FileUtils.getAbsolutePath(minecraftIcns));
-                        });
+                dockName = "Minecraft " + manifest.id();
+                dockIcon = instance.getAssetObject(manifest.getAssetIndex().getId(), "icons/minecraft.icns")
+                        .map(FileUtils::getAbsolutePath).orElse(null);
             }
-
-            if (OperatingSystem.CURRENT_OS != OperatingSystem.WINDOWS)
-                res.addDefault("-Duser.home=", options.getGameDir().toAbsolutePath().getParent().toString());
-
-            boolean addProxyOptions = res.noneMatch(arg ->
-                    arg.startsWith("-Djava.net.useSystemProxies=")
-                            || arg.startsWith("-Dhttp.proxy")
-                            || arg.startsWith("-Dhttps.proxy")
-                            || arg.startsWith("-DsocksProxy")
-                            || arg.startsWith("-Djava.net.socks.")
-            );
-
-            if (addProxyOptions) {
-                if (options.getProxyOption() == null || options.getProxyOption() == ProxyOption.Default.INSTANCE) {
-                    res.add("-Djava.net.useSystemProxies=true");
-                } else if (options.getProxyOption() instanceof ProxyOption.Http httpProxy) {
-                    res.add("-Dhttp.proxyHost=" + httpProxy.host());
-                    res.add("-Dhttp.proxyPort=" + httpProxy.port());
-                    res.add("-Dhttps.proxyHost=" + httpProxy.host());
-                    res.add("-Dhttps.proxyPort=" + httpProxy.port());
-
-                    if (StringUtils.isNotBlank(httpProxy.username())) {
-                        res.add("-Dhttp.proxyUser=" + httpProxy.username());
-                        res.add("-Dhttp.proxyPassword=" + Objects.requireNonNullElse(httpProxy.password(), ""));
-                        res.add("-Dhttps.proxyUser=" + httpProxy.username());
-                        res.add("-Dhttps.proxyPassword=" + Objects.requireNonNullElse(httpProxy.password(), ""));
-                    }
-                } else if (options.getProxyOption() instanceof ProxyOption.Socks socksProxy) {
-                    res.add("-DsocksProxyHost=" + socksProxy.host());
-                    res.add("-DsocksProxyPort=" + socksProxy.port());
-
-                    if (StringUtils.isNotBlank(socksProxy.username())) {
-                        res.add("-Djava.net.socks.username=" + socksProxy.username());
-                        res.add("-Djava.net.socks.password=" + Objects.requireNonNullElse(socksProxy.password(), ""));
-                    }
-                }
-            }
-
-            final int javaVersion = options.getJava().getParsedVersion();
-            final boolean is64bit = options.getJava().getBits() == Bits.BIT_64;
-
-            if (!options.isNoGeneratedOptimizingJVMArgs()) {
-                res.addUnstableDefault("UnlockExperimentalVMOptions", true);
-                res.addUnstableDefault("UnlockDiagnosticVMOptions", true);
-
-                // Using G1GC with its settings by default
-                if (javaVersion >= 8
-                        && res.noneMatch(arg -> "-XX:-UseG1GC".equals(arg) || (arg.startsWith("-XX:+Use") && arg.endsWith("GC")))) {
-                    res.addUnstableDefault("UseG1GC", true);
-                    res.addUnstableDefault("G1MixedGCCountTarget", "5");
-                    res.addUnstableDefault("G1NewSizePercent", "20");
-                    res.addUnstableDefault("G1ReservePercent", "20");
-                    res.addUnstableDefault("MaxGCPauseMillis", "50");
-                    res.addUnstableDefault("G1HeapRegionSize", "32m");
-                }
-
-                res.addUnstableDefault("OmitStackTraceInFastThrow", false);
-
-                // JIT Options
-                if (javaVersion <= 8) {
-                    res.addUnstableDefault("MaxInlineLevel", "15");
-                }
-                if (is64bit && SystemInfo.getTotalMemorySize() > 4L * 1024 * 1024 * 1024) {
-                    res.addUnstableDefault("DontCompileHugeMethods", false);
-                    res.addUnstableDefault("MaxNodeLimit", "240000");
-                    res.addUnstableDefault("NodeLimitFudgeFactor", "8000");
-                    res.addUnstableDefault("TieredCompileTaskTimeout", "10000");
-                    res.addUnstableDefault("ReservedCodeCacheSize", "400M");
-                    if (javaVersion >= 9) {
-                        res.addUnstableDefault("NonNMethodCodeHeapSize", "12M");
-                        res.addUnstableDefault("ProfiledCodeHeapSize", "194M");
-                    }
-
-                    if (javaVersion >= 8) {
-                        res.addUnstableDefault("NmethodSweepActivity", "1");
-                    }
-                }
-
-                if (is64bit && (javaVersion >= 25 && javaVersion <= 26)) {
-                    res.addUnstableDefault("UseCompactObjectHeaders", true);
-                }
-
-                // As 32-bit JVM allocate 320KB for stack by default rather than 64-bit version allocating 1MB,
-                // causing Minecraft 1.13 crashed accounting for java.lang.StackOverflowError.
-                if (!is64bit) {
-                    res.addDefault("-Xss", "1m");
-                }
-            }
-
-            if (javaVersion == 16)
-                res.addDefault("--illegal-access=", "permit");
-
-            if (javaVersion == 24 || javaVersion == 25)
-                res.addDefault("--sun-misc-unsafe-memory-access=", "allow");
-
-            res.addDefault("-Dfml.ignoreInvalidMinecraftCertificates=", "true");
-            res.addDefault("-Dfml.ignorePatchDiscrepancies=", "true");
+            @Nullable String userHome = OperatingSystem.CURRENT_OS == OperatingSystem.WINDOWS
+                    ? null : options.getGameDir().toAbsolutePath().getParent().toString();
+            @Nullable ProxyOption proxy = options.getProxyOption();
+            int javaVersion = options.getJava().getParsedVersion();
+            boolean is64bit = options.getJava().getBits() == Bits.BIT_64;
+            boolean optimize = !options.isNoGeneratedOptimizingJVMArgs();
+            boolean memoryLarge = optimize && is64bit && SystemInfo.getTotalMemorySize() > 4L * 1024 * 1024 * 1024;
+            @Nullable List<String> nativeDefaults = NativeJvmDefaults.tryPlanPlatform(res, clientJar, dockName, dockIcon,
+                    userHome, proxy, javaVersion, is64bit, memoryLarge, optimize);
+            if (nativeDefaults != null) res.addAll(nativeDefaults);
+            else appendPlatformJvmDefaults(res, clientJar, dockName, dockIcon, userHome, proxy, javaVersion, is64bit, memoryLarge, optimize);
         }
 
         if (OperatingSystem.CURRENT_OS == OperatingSystem.WINDOWS
@@ -342,82 +250,98 @@ public class DefaultLauncher extends Launcher {
             }
         }
 
-        res.addAll(Arguments.parseArguments(Objects.requireNonNullElseGet(jvmArguments, this::getDefaultJVMArguments), configuration));
-        Arguments argumentsFromAuthInfo = authInfo.getLaunchArguments(options);
-        if (argumentsFromAuthInfo != null && argumentsFromAuthInfo.jvm() != null && !argumentsFromAuthInfo.jvm().isEmpty())
-            res.addAll(Arguments.parseArguments(argumentsFromAuthInfo.jvm(), configuration));
-
-        for (String javaAgent : options.getJavaAgents()) {
-            res.add("-javaagent:" + javaAgent);
-        }
+        List<Argument> effectiveJvmArguments = Objects.requireNonNullElseGet(jvmArguments, this::getDefaultJVMArguments);
+        @Nullable Arguments argumentsFromAuthInfo = authInfo.getLaunchArguments(options);
+        List<Argument> authJvmArguments = argumentsFromAuthInfo == null || argumentsFromAuthInfo.jvm() == null
+                ? Collections.emptyList() : argumentsFromAuthInfo.jvm();
+        List<Argument> gameArguments = Optional.ofNullable(manifest.arguments()).map(Arguments::game).orElseGet(Collections::emptyList);
+        List<Argument> defaultGameArguments = manifest.minecraftArguments() == null ? Collections.emptyList() : getDefaultGameArguments();
+        List<Argument> authGameArguments = argumentsFromAuthInfo == null || argumentsFromAuthInfo.game() == null
+                ? Collections.emptyList() : argumentsFromAuthInfo.game();
+        List<String> legacyArguments = Optional.ofNullable(manifest.minecraftArguments()).map(StringUtils::tokenize).orElseGet(ArrayList::new);
+        Map<String, Boolean> features = getFeatures();
+        List<List<String>> expandedArguments = expandLaunchArgumentGroups(effectiveJvmArguments, authJvmArguments,
+                legacyArguments, gameArguments, defaultGameArguments, authGameArguments, options.getGameArguments(), configuration, features);
 
         if (manifest.mainClass() == null) {
             throw new IllegalStateException("Main class is null for instance " + manifest.id());
         }
-
-        res.add(manifest.mainClass());
-
-        res.addAll(Arguments.parseStringArguments(Optional.ofNullable(manifest.minecraftArguments()).map(StringUtils::tokenize).orElseGet(ArrayList::new), configuration));
-
-        Map<String, Boolean> features = getFeatures();
-        Optional.ofNullable(manifest.arguments()).map(Arguments::game).ifPresent(arguments -> res.addAll(Arguments.parseArguments(arguments, configuration, features)));
-        if (Optional.ofNullable(manifest.minecraftArguments()).isPresent()) {
-            res.addAll(Arguments.parseArguments(this.getDefaultGameArguments(), configuration, features));
+        @Nullable NativeLaunchAssembly.Plan assembly = NativeLaunchAssembly.tryPlan(expandedArguments, options.getJavaAgents(), manifest.mainClass());
+        if (assembly == null) {
+            res.addAll(expandedArguments.get(0));
+            res.addAll(expandedArguments.get(1));
+            for (String javaAgent : options.getJavaAgents()) res.add("-javaagent:" + javaAgent);
+            res.add(manifest.mainClass());
+            res.addAll(expandedArguments.get(2));
+            res.addAll(expandedArguments.get(3));
+            res.addAll(expandedArguments.get(4));
+            res.addAll(expandedArguments.get(5));
+        } else {
+            res.addAll(assembly.before());
         }
-        if (argumentsFromAuthInfo != null && argumentsFromAuthInfo.game() != null && !argumentsFromAuthInfo.game().isEmpty())
-            res.addAll(Arguments.parseArguments(argumentsFromAuthInfo.game(), configuration, features));
 
-        if (options.getQuickPlayOption() instanceof QuickPlayOption.MultiPlayer multiPlayer) {
-            String address = multiPlayer.serverIP();
+        @Nullable String graphicsArgument = options.getGraphicsBackend() != GraphicsAPI.DEFAULT
+                && gameVersion.isPresent() && GameVersionNumber.compare(gameVersion.get(), "26.2-snapshot-2") >= 0
+                ? options.getGraphicsBackend().getMinecraftArg() : null;
+        @Nullable List<String> nativeExtras = options.getQuickPlayOption() == null && !options.isFullscreen()
+                && !(options.getProxyOption() instanceof ProxyOption.Socks) && graphicsArgument == null
+                ? List.of() : NativeLaunchExtras.tryPlan(options.getQuickPlayOption(),
+                        options.getQuickPlayOption() != null && World.supportQuickPlay(GameVersionNumber.asGameVersion(gameVersion)),
+                        options.isFullscreen(), options.getProxyOption(), graphicsArgument);
+        if (nativeExtras != null) {
+            res.addAll(nativeExtras);
+        } else {
+            if (options.getQuickPlayOption() instanceof QuickPlayOption.MultiPlayer multiPlayer) {
+                String address = multiPlayer.serverIP();
 
-            try {
-                ServerAddress parsed = ServerAddress.parse(address);
-                if (World.supportQuickPlay(GameVersionNumber.asGameVersion(gameVersion))) {
-                    res.add("--quickPlayMultiplayer");
-                    res.add(parsed.port() >= 0 ? address : parsed.host() + ":25565");
-                } else {
-                    res.add("--server");
-                    res.add(parsed.host());
-                    res.add("--port");
-                    res.add(parsed.port() >= 0 ? String.valueOf(parsed.port()) : "25565");
+                try {
+                    ServerAddress parsed = ServerAddress.parse(address);
+                    if (World.supportQuickPlay(GameVersionNumber.asGameVersion(gameVersion))) {
+                        res.add("--quickPlayMultiplayer");
+                        res.add(parsed.port() >= 0 ? address : parsed.host() + ":25565");
+                    } else {
+                        res.add("--server");
+                        res.add(parsed.host());
+                        res.add("--port");
+                        res.add(parsed.port() >= 0 ? String.valueOf(parsed.port()) : "25565");
+                    }
+                } catch (IllegalArgumentException e) {
+                    LOG.warning("Invalid server address: " + address, e);
                 }
-            } catch (IllegalArgumentException e) {
-                LOG.warning("Invalid server address: " + address, e);
+            } else if (options.getQuickPlayOption() instanceof QuickPlayOption.SinglePlayer singlePlayer
+                    && World.supportQuickPlay(GameVersionNumber.asGameVersion(gameVersion))) {
+                res.add("--quickPlaySingleplayer");
+                res.add(singlePlayer.worldFolderName());
+            } else if (options.getQuickPlayOption() instanceof QuickPlayOption.Realm realm
+                    && World.supportQuickPlay(GameVersionNumber.asGameVersion(gameVersion))) {
+                res.add("--quickPlayRealms");
+                res.add(realm.realmID());
             }
-        } else if (options.getQuickPlayOption() instanceof QuickPlayOption.SinglePlayer singlePlayer
-                && World.supportQuickPlay(GameVersionNumber.asGameVersion(gameVersion))) {
-            res.add("--quickPlaySingleplayer");
-            res.add(singlePlayer.worldFolderName());
-        } else if (options.getQuickPlayOption() instanceof QuickPlayOption.Realm realm
-                && World.supportQuickPlay(GameVersionNumber.asGameVersion(gameVersion))) {
-            res.add("--quickPlayRealms");
-            res.add(realm.realmID());
-        }
 
-        if (options.isFullscreen())
-            res.add("--fullscreen");
+            if (options.isFullscreen())
+                res.add("--fullscreen");
 
-        // https://github.com/HMCL-dev/HMCL/issues/774
-        if (options.getProxyOption() instanceof ProxyOption.Socks socksProxy) {
-            res.add("--proxyHost");
-            res.add(socksProxy.host());
-            res.add("--proxyPort");
-            res.add(String.valueOf(socksProxy.port()));
-            if (StringUtils.isNotBlank(socksProxy.username())) {
-                res.add("--proxyUser");
-                res.add(socksProxy.username());
-                res.add("--proxyPass");
-                res.add(Objects.requireNonNullElse(socksProxy.password(), ""));
+            // https://github.com/HMCL-dev/HMCL/issues/774
+            if (options.getProxyOption() instanceof ProxyOption.Socks socksProxy) {
+                res.add("--proxyHost");
+                res.add(socksProxy.host());
+                res.add("--proxyPort");
+                res.add(String.valueOf(socksProxy.port()));
+                if (StringUtils.isNotBlank(socksProxy.username())) {
+                    res.add("--proxyUser");
+                    res.add(socksProxy.username());
+                    res.add("--proxyPass");
+                    res.add(Objects.requireNonNullElse(socksProxy.password(), ""));
+                }
+            }
+
+            if (options.getGraphicsBackend() != GraphicsAPI.DEFAULT
+                    && gameVersion.isPresent() && GameVersionNumber.compare(gameVersion.get(), "26.2-snapshot-2") >= 0) {
+                res.add("--graphicsBackend");
+                res.add(options.getGraphicsBackend().getMinecraftArg());
             }
         }
-
-        if (options.getGraphicsBackend() != GraphicsAPI.DEFAULT
-                && gameVersion.isPresent() && GameVersionNumber.compare(gameVersion.get(), "26.2-snapshot-2") >= 0) {
-            res.add("--graphicsBackend");
-            res.add(options.getGraphicsBackend().getMinecraftArg());
-        }
-
-        res.addAllWithoutParsing(Arguments.parseStringArguments(options.getGameArguments(), configuration));
+        res.addAllWithoutParsing(assembly == null ? expandedArguments.get(6) : assembly.after());
 
         res.removeIf(it -> getForbiddens().containsKey(it) && getForbiddens().get(it).get());
         return new Command(res, tempNativeFolder, javaNativeFolder, encoding);
@@ -428,6 +352,230 @@ public class DefaultLauncher extends Launcher {
                 "has_custom_resolution",
                 options.getHeight() != null && options.getHeight() != 0 && options.getWidth() != null && options.getWidth() != 0
         );
+    }
+
+    /// Applies platform, game proxy and optimization JVM defaults using the Java compatibility path.
+    /// @param res current command builder
+    /// @param clientJar game JAR path
+    /// @param dockName macOS dock label, or null
+    /// @param dockIcon macOS dock icon path, or null
+    /// @param userHome home path on non-Windows systems, or null
+    /// @param proxy selected game proxy, or null for default
+    /// @param javaVersion Java major version
+    /// @param is64bit whether Java is 64-bit
+    /// @param memoryLarge whether system memory exceeds four GiB
+    /// @param optimize whether optimizing defaults are enabled
+    static void appendPlatformJvmDefaults(CommandBuilder res, String clientJar, @Nullable String dockName,
+            @Nullable String dockIcon, @Nullable String userHome, @Nullable ProxyOption proxy, int javaVersion,
+            boolean is64bit, boolean memoryLarge, boolean optimize) {
+        res.addDefault("-Dminecraft.client.jar=", clientJar);
+        if (dockName != null) res.addDefault("-Xdock:name=", dockName);
+        if (dockIcon != null) res.addDefault("-Xdock:icon=", dockIcon);
+        if (userHome != null) res.addDefault("-Duser.home=", userHome);
+        boolean addProxyOptions = res.noneMatch(arg ->
+                arg.startsWith("-Djava.net.useSystemProxies=")
+                        || arg.startsWith("-Dhttp.proxy")
+                        || arg.startsWith("-Dhttps.proxy")
+                        || arg.startsWith("-DsocksProxy")
+                        || arg.startsWith("-Djava.net.socks.")
+        );
+
+        if (addProxyOptions) {
+            if (proxy == null || proxy == ProxyOption.Default.INSTANCE) {
+                res.add("-Djava.net.useSystemProxies=true");
+            } else if (proxy instanceof ProxyOption.Http httpProxy) {
+                res.add("-Dhttp.proxyHost=" + httpProxy.host());
+                res.add("-Dhttp.proxyPort=" + httpProxy.port());
+                res.add("-Dhttps.proxyHost=" + httpProxy.host());
+                res.add("-Dhttps.proxyPort=" + httpProxy.port());
+
+                if (StringUtils.isNotBlank(httpProxy.username())) {
+                    res.add("-Dhttp.proxyUser=" + httpProxy.username());
+                    res.add("-Dhttp.proxyPassword=" + Objects.requireNonNullElse(httpProxy.password(), ""));
+                    res.add("-Dhttps.proxyUser=" + httpProxy.username());
+                    res.add("-Dhttps.proxyPassword=" + Objects.requireNonNullElse(httpProxy.password(), ""));
+                }
+            } else if (proxy instanceof ProxyOption.Socks socksProxy) {
+                res.add("-DsocksProxyHost=" + socksProxy.host());
+                res.add("-DsocksProxyPort=" + socksProxy.port());
+
+                if (StringUtils.isNotBlank(socksProxy.username())) {
+                    res.add("-Djava.net.socks.username=" + socksProxy.username());
+                    res.add("-Djava.net.socks.password=" + Objects.requireNonNullElse(socksProxy.password(), ""));
+                }
+            }
+        }
+
+        appendJvmOptimizationDefaults(res, javaVersion, is64bit, memoryLarge, optimize);
+    }
+
+    /// Applies heap, metaspace and ordinary JVM defaults using the Java compatibility path.
+    /// @param res current command builder
+    /// @param javaVersion Java major version
+    /// @param min minimum heap size in MiB, or null
+    /// @param max maximum heap size in MiB, or null
+    /// @param metaspace metaspace size in MiB, or null
+    /// @param defaults user JVM defaults
+    static void appendInitialJvmDefaults(CommandBuilder res, int javaVersion, @Nullable Integer min, @Nullable Integer max,
+            @Nullable Integer metaspace, List<String> defaults) {
+        if (max != null && max > 0) res.addDefault("-Xmx", max + "m");
+        if (min != null && min > 0 && (max == null || min <= max)) res.addDefault("-Xms", min + "m");
+        if (metaspace != null && metaspace > 0)
+            res.addDefault(javaVersion < 8 ? "-XX:PermSize=" : "-XX:MetaspaceSize=", metaspace + "m");
+        res.addAllDefaultWithoutParsing(defaults);
+    }
+
+    /// Applies the Java-compatible JVM optimization and version defaults.
+    /// @param res current command builder
+    /// @param javaVersion Java major version
+    /// @param is64bit whether Java is 64-bit
+    /// @param memoryLarge whether system memory exceeds four GiB
+    /// @param optimize whether optimizing defaults are enabled
+    static void appendJvmOptimizationDefaults(CommandBuilder res, int javaVersion, boolean is64bit, boolean memoryLarge, boolean optimize) {
+        if (optimize) {
+            res.addUnstableDefault("UnlockExperimentalVMOptions", true);
+            res.addUnstableDefault("UnlockDiagnosticVMOptions", true);
+
+            // Using G1GC with its settings by default
+            if (javaVersion >= 8
+                    && res.noneMatch(arg -> "-XX:-UseG1GC".equals(arg) || (arg.startsWith("-XX:+Use") && arg.endsWith("GC")))) {
+                res.addUnstableDefault("UseG1GC", true);
+                res.addUnstableDefault("G1MixedGCCountTarget", "5");
+                res.addUnstableDefault("G1NewSizePercent", "20");
+                res.addUnstableDefault("G1ReservePercent", "20");
+                res.addUnstableDefault("MaxGCPauseMillis", "50");
+                res.addUnstableDefault("G1HeapRegionSize", "32m");
+            }
+
+            res.addUnstableDefault("OmitStackTraceInFastThrow", false);
+
+            // JIT Options
+            if (javaVersion <= 8) {
+                res.addUnstableDefault("MaxInlineLevel", "15");
+            }
+            if (is64bit && memoryLarge) {
+                res.addUnstableDefault("DontCompileHugeMethods", false);
+                res.addUnstableDefault("MaxNodeLimit", "240000");
+                res.addUnstableDefault("NodeLimitFudgeFactor", "8000");
+                res.addUnstableDefault("TieredCompileTaskTimeout", "10000");
+                res.addUnstableDefault("ReservedCodeCacheSize", "400M");
+                if (javaVersion >= 9) {
+                    res.addUnstableDefault("NonNMethodCodeHeapSize", "12M");
+                    res.addUnstableDefault("ProfiledCodeHeapSize", "194M");
+                }
+
+                if (javaVersion >= 8) {
+                    res.addUnstableDefault("NmethodSweepActivity", "1");
+                }
+            }
+
+            if (is64bit && (javaVersion >= 25 && javaVersion <= 26)) {
+                res.addUnstableDefault("UseCompactObjectHeaders", true);
+            }
+
+            // As 32-bit JVM allocate 320KB for stack by default rather than 64-bit version allocating 1MB,
+            // causing Minecraft 1.13 crashed accounting for java.lang.StackOverflowError.
+            if (!is64bit) {
+                res.addDefault("-Xss", "1m");
+            }
+        }
+
+        if (javaVersion == 16)
+            res.addDefault("--illegal-access=", "permit");
+
+        if (javaVersion == 24 || javaVersion == 25)
+            res.addDefault("--sun-misc-unsafe-memory-access=", "allow");
+
+        res.addDefault("-Dfml.ignoreInvalidMinecraftCertificates=", "true");
+        res.addDefault("-Dfml.ignorePatchDiscrepancies=", "true");
+    }
+
+    /// Selects applicable argument values and expands them in one native request when supported.
+    ///
+    /// Rule evaluation remains in Java for compatibility with existing platform and feature rules.
+    /// Unknown argument implementations retain the original Java parser for all groups.
+    ///
+    /// @param jvm version JVM arguments
+    /// @param authJvm authentication JVM arguments
+    /// @param legacy legacy game arguments
+    /// @param game version game arguments
+    /// @param defaults default game arguments
+    /// @param authGame authentication game arguments
+    /// @param custom custom user game arguments
+    /// @param configuration placeholder values, potentially containing credentials
+    /// @param features active launch features
+    /// @return expanded groups in the same order as the input groups
+    /// @throws IOException if native expansion is interrupted
+    static List<List<String>> expandLaunchArgumentGroups(List<Argument> jvm, List<Argument> authJvm,
+            List<String> legacy, List<Argument> game, List<Argument> defaults, List<Argument> authGame,
+            List<String> custom, Map<String, String> configuration, Map<String, Boolean> features) throws IOException {
+        @Nullable String configured = System.getProperty("mfcl.native.path");
+        if (configured != null && !configured.isBlank()
+                && Boolean.parseBoolean(System.getProperty("mfcl.native.arguments.enabled", "true"))) {
+            try {
+                List<List<Argument>> nativeGroups = List.of(jvm, authJvm, wrapStringArguments(legacy), game,
+                        defaults, authGame, wrapStringArguments(custom));
+                List<Map<String, Boolean>> featureGroups = List.of(Collections.emptyMap(), Collections.emptyMap(),
+                        Collections.emptyMap(), features, features, features, Collections.emptyMap());
+                return new ArrayList<>(NativeBackend.expandRuledArgumentGroups(Path.of(configured), nativeGroups, featureGroups, configuration));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new InterruptedIOException("Native argument planning was interrupted");
+            } catch (IOException | RuntimeException e) {
+                LOG.warning("Native launch rule planning failed; using compatibility path");
+            }
+        }
+        List<List<Argument>> ruledGroups = List.of(jvm, authJvm, game, defaults, authGame);
+        List<List<String>> raw = new ArrayList<>(ruledGroups.size());
+        for (int i = 0; i < ruledGroups.size(); i++) {
+            Map<String, Boolean> active = i < 2 ? Collections.emptyMap() : features;
+            Optional<List<String>> selected = Arguments.selectRawArguments(ruledGroups.get(i), active);
+            if (selected.isEmpty()) {
+                return List.of(Arguments.parseArguments(jvm, configuration), Arguments.parseArguments(authJvm, configuration),
+                        Arguments.parseStringArguments(legacy, configuration), Arguments.parseArguments(game, configuration, features),
+                        Arguments.parseArguments(defaults, configuration, features), Arguments.parseArguments(authGame, configuration, features),
+                        Arguments.parseStringArguments(custom, configuration));
+            }
+            raw.add(selected.get());
+        }
+        return expandStringArgumentGroups(List.of(raw.get(0), raw.get(1), legacy, raw.get(2), raw.get(3), raw.get(4), custom), configuration);
+    }
+
+    /// Converts raw string arguments to the common argument model, omitting null entries.
+    ///
+    /// @param values raw argument strings
+    /// @return equivalent argument objects
+    private static List<Argument> wrapStringArguments(List<String> values) {
+        List<Argument> result = new ArrayList<>();
+        for (@Nullable String value : values) if (value != null) result.add(new StringArgument(value));
+        return result;
+    }
+
+    /// Expands launch argument groups with the configured native backend when available.
+    ///
+    /// The configuration can contain credentials; request contents and native failures must not be
+    /// logged. Unsupported requests or backend failures fall back to the existing Java parser.
+    ///
+    /// @param groups ordered groups of raw arguments
+    /// @param configuration placeholder values
+    /// @return expanded argument groups
+    /// @throws IOException if the current thread is interrupted
+    static List<List<String>> expandStringArgumentGroups(List<List<String>> groups, Map<String, String> configuration) throws IOException {
+        @Nullable String configured = System.getProperty("mfcl.native.path");
+        if (configured != null && !configured.isBlank()
+                && Boolean.parseBoolean(System.getProperty("mfcl.native.arguments.enabled", "true"))) {
+            try {
+                return new ArrayList<>(NativeBackend.expandArgumentGroups(Path.of(configured), groups, configuration));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new InterruptedIOException("Native argument expansion was interrupted");
+            } catch (IOException | RuntimeException e) {
+                LOG.warning("Native launch argument expansion failed; using Java parser");
+            }
+        }
+        List<List<String>> result = new ArrayList<>(groups.size());
+        for (List<String> group : groups) result.add(Arguments.parseStringArguments(group, configuration));
+        return result;
     }
 
     private final Map<String, Supplier<Boolean>> forbiddens = mapOf(
@@ -458,10 +606,15 @@ public class DefaultLauncher extends Launcher {
         LOG.info("Decompress native libraries to " + destination);
 
         try {
+            List<Library> libraries = manifest.getLibraries();
+            @Nullable Map<Integer, Path> archives = planNativeArchives(instance.getLayout(), instance.getId(), libraries);
+            boolean @Nullable [] nativeSelection = archives == null ? selectNativeLibraries(libraries) : null;
             FileUtils.cleanDirectoryQuietly(destination);
-            for (Library library : manifest.getLibraries())
-                if (library.isNative())
-                    new Unzipper(instance.getLayout().getLibraryFile(instance.getId(), library), destination)
+            for (int index = 0; index < libraries.size(); index++) {
+                Library library = libraries.get(index);
+                if (archives != null ? archives.containsKey(index) : (nativeSelection == null ? library.isNative() : nativeSelection[index]))
+                    new Unzipper(archives == null ? instance.getLayout().getLibraryFile(instance.getId(), library) : archives.get(index), destination)
+                            .setNativeExtraction()
                             .setFilter((zipEntry, destFile, relativePath) -> {
                                 if (!zipEntry.isDirectory() && !zipEntry.isUnixSymlink()
                                         && Files.isRegularFile(destFile)
@@ -487,8 +640,50 @@ public class DefaultLauncher extends Launcher {
                                 return library.getExtract().shouldExtract(relativePath);
                             })
                             .setReplaceExistentFile(false).unzip();
+            }
         } catch (IOException e) {
             throw new NotDecompressingNativesException(e);
+        }
+    }
+
+    /// Plans standard-layout native archive paths using Rust when supported.
+    /// @param layout repository layout
+    /// @param instanceId game instance identifier
+    /// @param libraries resolved libraries in their original order
+    /// @return archive paths, or null to use the existing path resolution
+    /// @throws InterruptedIOException if interrupted
+    static @Nullable Map<Integer, Path> planNativeArchives(GameRepositoryLayout layout, GameInstanceID instanceId,
+            List<Library> libraries) throws InterruptedIOException {
+        @Nullable String executable = System.getProperty("mfcl.native.path");
+        if (executable == null || executable.isBlank()
+                || !Boolean.parseBoolean(System.getProperty("mfcl.native.libraries.enabled", "true"))) return null;
+        try {
+            return NativeBackend.planNativeArchives(Path.of(executable), layout, instanceId, libraries);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new InterruptedIOException("Native archive planning was interrupted");
+        } catch (IOException | RuntimeException e) {
+            LOG.warning("Native archive planning failed; using Java paths");
+            return null;
+        }
+    }
+
+    /// Selects native archives using Rust when the configured backend supports it.
+    /// @param libraries resolved libraries in their original order
+    /// @return native selection, or null to use Java
+    /// @throws InterruptedIOException if interrupted
+    static boolean @Nullable [] selectNativeLibraries(List<Library> libraries) throws InterruptedIOException {
+        @Nullable String executable = System.getProperty("mfcl.native.path");
+        if (executable == null || executable.isBlank()
+                || !Boolean.parseBoolean(System.getProperty("mfcl.native.libraries.enabled", "true"))) return null;
+        try {
+            return NativeBackend.selectNativeLibraries(Path.of(executable), libraries);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new InterruptedIOException("Native library selection was interrupted");
+        } catch (IOException | RuntimeException e) {
+            LOG.warning("Native library selection failed; using Java path");
+            return null;
         }
     }
 
@@ -551,7 +746,7 @@ public class DefaultLauncher extends Launcher {
     /// @return a possibly rewritten argument list; the input list is not modified
     private List<Argument> rewriteUnsafeBootstrapLauncherIgnoreList(
             List<Argument> jvmArguments,
-            Set<String> libraryClasspath) {
+            Set<String> libraryClasspath) throws IOException {
         if (!GameComponentAnalyzer.BOOTSTRAP_LAUNCHER_MAIN.equals(manifest.mainClass())) {
             return jvmArguments;
         }
@@ -564,17 +759,21 @@ public class DefaultLauncher extends Launcher {
         }
 
         Path libraryDirectory = instance.getLayout().getLibrariesDirectory().toAbsolutePath().normalize();
+        List<String> rawLists = new ArrayList<>();
+        for (Argument argument : jvmArguments)
+            if (argument instanceof StringArgument value && value.argument().startsWith("-DignoreList="))
+                rawLists.add(value.argument().substring("-DignoreList=".length()));
+        @Nullable List<String> nativeLists = rawLists.isEmpty() ? null : NativeBootstrapIgnore.tryPlan(rawLists, libraryClasspath, libraryDirectory);
         List<Argument> rewritten = new ArrayList<>(jvmArguments.size());
-        boolean changed = false;
+        boolean changed = false; int listIndex = 0;
         for (Argument argument : jvmArguments) {
             if (argument instanceof StringArgument stringArgument) {
                 String value = stringArgument.argument();
                 if (value.startsWith("-DignoreList=")) {
-                    rewritten.add(new StringArgument(
-                            "-DignoreList=" + rewriteIgnoreList(
-                                    value.substring("-DignoreList=".length()),
-                                    libraryClasspath,
-                                    libraryDirectory)));
+                    String list = nativeLists != null ? nativeLists.get(listIndex)
+                            : rewriteIgnoreList(value.substring("-DignoreList=".length()), libraryClasspath, libraryDirectory);
+                    rewritten.add(new StringArgument("-DignoreList=" + list));
+                    listIndex++;
                     changed = true;
                     continue;
                 }
@@ -594,7 +793,7 @@ public class DefaultLauncher extends Launcher {
     /// @param libraryClasspath absolute library classpath entries for this launch
     /// @param libraryDirectory absolute `.minecraft/libraries` directory
     /// @return the exact comma-separated ignore list
-    private static String rewriteIgnoreList(
+    static String rewriteIgnoreList(
             String ignoreList,
             Set<String> libraryClasspath,
             Path libraryDirectory) {
@@ -696,15 +895,19 @@ public class DefaultLauncher extends Launcher {
 
         Process process;
         try {
-            ProcessBuilder builder = new ProcessBuilder(rawCommandLine).directory(runDirectory.toFile());
-            if (listener == null) {
-                builder.inheritIO();
-            }
+            Map<String, String> environment = new LinkedHashMap<>();
             Path appdata = options.getGameDir().toAbsolutePath().getParent();
-            if (appdata != null) builder.environment().put("APPDATA", appdata.toString());
-
-            builder.environment().putAll(getEnvVars(nativeFolder));
-            process = builder.start();
+            if (appdata != null) environment.put("APPDATA", appdata.toString());
+            environment.putAll(getEnvVars(nativeFolder));
+            @Nullable NativeLaunchConfig nativeLaunch = listener != null && NativeLaunch.supportsCommand(rawCommandLine) ? nativeLaunchExecutable() : null;
+            if (nativeLaunch != null) {
+                process = NativeLaunch.start(nativeLaunch.executable(), rawCommandLine, runDirectory, environment, nativeLaunch.protocol());
+            } else {
+                ProcessBuilder builder = new ProcessBuilder(rawCommandLine).directory(runDirectory.toFile());
+                if (listener == null) builder.inheritIO();
+                builder.environment().putAll(environment);
+                process = builder.start();
+            }
         } catch (IOException e) {
             throw new ProcessCreationException(e);
         }
@@ -713,6 +916,32 @@ public class DefaultLauncher extends Launcher {
         if (listener != null)
             startMonitors(p, nativeFolder, listener, command.encoding, daemon);
         return p;
+    }
+
+    /// Resolves a configured native process-replacement backend when its capability is available.
+    ///
+    /// Unsupported systems, disabled native launch, or a failed capability probe retain the Java
+    /// process-creation path. A native child is never retried after it may have started the game.
+    ///
+    /// @return native executable path, or `null` when Java should launch the process
+    /// @throws InterruptedException if the capability check is interrupted
+    private record NativeLaunchConfig(Path executable, int protocol) { }
+
+    private @Nullable NativeLaunchConfig nativeLaunchExecutable() throws InterruptedException {
+        @Nullable String configured = System.getProperty("mfcl.native.path");
+        if (configured == null || configured.isBlank()
+                || !Boolean.parseBoolean(System.getProperty("mfcl.native.launch.enabled", "true"))
+                || !(OperatingSystem.CURRENT_OS.isLinuxOrBSD() || OperatingSystem.CURRENT_OS == OperatingSystem.MACOS)) {
+            return null;
+        }
+        try {
+            Path executable = Path.of(configured);
+            int protocol = NativeBackend.launchExecProtocol(executable);
+            return protocol == 0 ? null : new NativeLaunchConfig(executable, protocol);
+        } catch (IOException | RuntimeException e) {
+            LOG.warning("Native game launch is unavailable; using Java process creation");
+            return null;
+        }
     }
 
     private Map<String, String> getEnvVars(Path nativeFolder) {
@@ -817,15 +1046,42 @@ public class DefaultLauncher extends Launcher {
         return env;
     }
 
-    private Set<String> getClasspath() {
-        GameInstanceID instanceId = instance.getId();
-        GameRepositoryLayout layout = instance.getLayout();
-
+    /// Resolves the launch classpath using the configured native backend where supported.
+    ///
+    /// @return ordered library classpath entries
+    /// @throws IOException if interrupted while contacting the native backend
+    private Set<String> getClasspath() throws IOException {
         boolean processOptiFine = instance.hasComponent(OPTIFINE) && (instance.hasComponent(LITELOADER) || instance.hasComponent(FORGE));
-        @Nullable Path selectedOptiFineInstallerFile = null;
+        return resolveClasspath(instance.getId(), instance.getLayout(), manifest.getLibraries(), processOptiFine,
+                GameComponentAnalyzer.MOD_LAUNCHER_MAIN.equals(manifest.mainClass()));
+    }
 
+    /// Builds the ordered library classpath with native support and Java compatibility fallback.
+    ///
+    /// @param instanceId selected instance identifier
+    /// @param layout repository path layout
+    /// @param libraries resolved library list
+    /// @param processOptiFine whether OptiFine special handling applies
+    /// @param modLauncher whether OptiFine is loaded by ModLauncher
+    /// @return ordered deduplicated classpath
+    /// @throws IOException if native planning is interrupted
+    static Set<String> resolveClasspath(GameInstanceID instanceId, GameRepositoryLayout layout, List<Library> libraries,
+                                        boolean processOptiFine, boolean modLauncher) throws IOException {
+        @Nullable String executable = System.getProperty("mfcl.native.path");
+        if (executable != null && !executable.isBlank()
+                && Boolean.parseBoolean(System.getProperty("mfcl.native.classpath.enabled", "true"))) {
+            try {
+                return new LinkedHashSet<>(NativeBackend.planClasspath(Path.of(executable), layout, instanceId, libraries, processOptiFine, modLauncher));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new InterruptedIOException("Native classpath planning was interrupted");
+            } catch (IOException | RuntimeException e) {
+                LOG.warning("Native classpath planning failed; using Java path");
+            }
+        }
+        @Nullable Path selectedOptiFineInstallerFile = null;
         Set<String> classpath = new LinkedHashSet<>();
-        for (Library library : manifest.getLibraries()) {
+        for (Library library : libraries) {
             if (library.appliesToCurrentEnvironment() && !library.isNative()) {
                 if (processOptiFine) {
                     if (library.is("optifine", "OptiFine")) {
@@ -852,7 +1108,7 @@ public class DefaultLauncher extends Launcher {
         // Re-append the installer last so OptiFine follows Forge when Forge has no patch entry.
         if (selectedOptiFineInstallerFile != null &&
                 // With ModLauncher, OptiFine is discovered via HMCLTransformerDiscoveryService, not classpath.
-                !GameComponentAnalyzer.MOD_LAUNCHER_MAIN.equals(manifest.mainClass())) {
+                !modLauncher) {
             classpath.add(FileUtils.getAbsolutePath(selectedOptiFineInstallerFile));
         }
         return classpath;

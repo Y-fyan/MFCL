@@ -32,6 +32,7 @@ import org.jackhuang.hmcl.game.GameComponentType;
 import org.jackhuang.hmcl.modpack.ModAdviser;
 import org.jackhuang.hmcl.modpack.Modpack;
 import org.jackhuang.hmcl.modpack.ModpackExportInfo;
+import org.jackhuang.hmcl.nativebridge.NativeBackend;
 import org.jackhuang.hmcl.task.Task;
 import org.jackhuang.hmcl.util.DigestUtils;
 import org.jackhuang.hmcl.util.StringUtils;
@@ -118,9 +119,7 @@ public class ModrinthModpackExportTask extends Task<Void> {
             return null;
         }
 
-        Map<String, String> hashes = new HashMap<>();
-        hashes.put("sha1", DigestUtils.digestToString("SHA-1", file));
-        hashes.put("sha512", DigestUtils.digestToString("SHA-512", file));
+        Map<String, String> hashes = calculateHashes(file);
 
         @Nullable Map<String, String> env = null;
         if (isDisabled) {
@@ -145,6 +144,30 @@ public class ModrinthModpackExportTask extends Task<Void> {
                 downloads,
                 (int) fileSize
         );
+    }
+
+    /// Computes both export hashes in Rust when supported, preserving the Java fallback.
+    /// @param file local file to hash
+    /// @return the SHA-1 and SHA-512 values
+    /// @throws IOException if Java fallback cannot read the file or the task is interrupted
+    private Map<String, String> calculateHashes(Path file) throws IOException {
+        @Nullable String executable = System.getProperty("mfcl.native.path");
+        if (executable != null && !executable.isBlank()
+                && Boolean.parseBoolean(System.getProperty("mfcl.native.modpack.enabled", "true"))) {
+            try {
+                @Nullable Map<String, String> hashes = NativeBackend.hashModpackFile(Path.of(executable), file, this::isCancelled);
+                if (hashes != null) return hashes;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("Modpack hashing interrupted", e);
+            } catch (IOException | RuntimeException e) {
+                LOG.warning("Native modpack hashing unavailable; using Java implementation");
+            }
+        }
+        Map<String, String> hashes = new HashMap<>();
+        hashes.put("sha1", DigestUtils.digestToString("SHA-1", file));
+        hashes.put("sha512", DigestUtils.digestToString("SHA-512", file));
+        return hashes;
     }
 
     /// {@inheritDoc}

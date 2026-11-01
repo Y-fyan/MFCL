@@ -20,6 +20,7 @@ package org.jackhuang.hmcl.task;
 import org.glavo.url.WebURL;
 import org.jackhuang.hmcl.download.DownloadCandidate;
 import org.jackhuang.hmcl.download.DownloadCandidates;
+import org.jackhuang.hmcl.nativebridge.NativeTransfer;
 import org.jackhuang.hmcl.event.Event;
 import org.jackhuang.hmcl.event.EventBus;
 import org.jackhuang.hmcl.event.EventManager;
@@ -30,11 +31,14 @@ import org.jetbrains.annotations.*;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
+import java.net.URI;
 import java.net.URLConnection;
 import java.nio.file.Path;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -115,6 +119,7 @@ public abstract class FetchTask<T extends @UnknownNullability Object> extends Ta
                 Duration readTimeout = Objects.requireNonNullElse(candidate.readTimeout(), NetworkUtils.TIMEOUT);
 
                 try {
+                    if (tryNativeMetadata(candidate, checkETag) || tryNativeDownload(candidate, checkETag)) return;
                     if (NetworkUtils.isHttpUri(url))
                         downloadHttp(url, retry, connectTimeout, readTimeout, checkETag);
                     else
@@ -139,6 +144,205 @@ public abstract class FetchTask<T extends @UnknownNullability Object> extends Ta
                 last.addSuppressed(exception);
             }
             throw last;
+        }
+    }
+
+    /// Returns a SHA-1 checksum when this fetch task supports verified native transfer.
+    ///
+    /// @return expected SHA-1, or `null` when native transfer is not supported
+    protected @Nullable String nativeExpectedSha1() {
+        return null;
+    }
+
+    /// Returns the expected SHA-512 for native transfer when available.
+    /// @return expected SHA-512, or null for another integrity mode
+    protected @Nullable String nativeExpectedSha512() { return null; }
+
+    /// Digest algorithm and value supported by the native non-SHA-1 transfer path.
+    /// @param algorithm canonical algorithm name
+    /// @param digest expected hexadecimal digest
+    protected record NativeOtherDigest(String algorithm, String digest) { }
+
+    /// Returns an optional SHA-256 or MD5 digest for native transfer.
+    /// @return expected algorithm and digest, or null for another integrity mode
+    protected @Nullable NativeOtherDigest nativeExpectedOtherDigest() { return null; }
+
+    /// Whether the caller independently verifies a non-SHA-1 digest before publication.
+    /// @return whether independent integrity validation is mandatory
+    protected boolean nativeHasIndependentIntegrity() {
+        return false;
+    }
+
+    /// Whether the task can consume a normal HTTP metadata response from native transfer.
+    /// @return true when its context accepts response headers and ETag caching
+    protected boolean supportsNativeMetadata() { return false; }
+
+    /// Fetches ETag-aware metadata using Rust while retaining Java cache and publication logic.
+    /// @param source download candidate
+    /// @param checkETag whether the existing cache policy requires response metadata
+    /// @return whether the request completed or a valid cached result was used
+    /// @throws InterruptedException when cancelled
+    protected boolean tryNativeMetadata(DownloadCandidate source, boolean checkETag) throws InterruptedException {
+        @Nullable String executable = System.getProperty("mfcl.native.path");
+        @Nullable WebURL url = source.url();
+        if (!checkETag || !supportsNativeMetadata() || executable == null || executable.isBlank()
+                || !Boolean.parseBoolean(System.getProperty("mfcl.native.download.enabled", "true"))
+                || source.connectTimeout() != null || source.readTimeout() != null
+                || url == null || !isNativeSourceEligible(url)) return false;
+        @Nullable Path staging = null;
+        try {
+            if (isCancelled()) throw new InterruptedException();
+            try {
+                useCachedResult(repository.getCachedRemoteFile(url, true));
+                return true;
+            } catch (IOException ignored) { }
+            staging = Files.createTempDirectory("mfcl-native-metadata-");
+            Path payload = staging.resolve("payload");
+            @Nullable String etag = repository.injectConnection(url).get("if-none-match");
+            AtomicLong lastBytes = new AtomicLong(); beforeDownload(url);
+            var result = NativeTransfer.fetchMetadata(Path.of(executable), url.href(), payload, etag, (count, total) -> {
+                long previous = lastBytes.getAndSet(count);
+                if (count >= previous) updateDownloadSpeed(count - previous);
+                if (total >= 0) updateProgress(count, total);
+            }, this::isCancelled);
+            if (isCancelled()) throw new InterruptedException();
+            if (result.status() == 304) {
+                if (etag == null || Files.exists(payload)) throw new IOException("Invalid native conditional response");
+                useCachedResult(repository.getCachedRemoteFile(url, false));
+                return true;
+            }
+            if (!Files.isRegularFile(payload, java.nio.file.LinkOption.NOFOLLOW_LINKS) || Files.size(payload) != result.bytes())
+                throw new IOException("Invalid native metadata payload");
+            var response = new UrlResponseInfo(result.status(), url, result.headers());
+            @Nullable String bmclapiHash = result.headers().firstValue("x-bmclapi-hash").orElse(null);
+            if (DigestUtils.isSha1Digest(bmclapiHash)) {
+                var cached = repository.checkExistentFile(null, "SHA-1", bmclapiHash);
+                if (cached.isPresent()) { useCachedResult(cached.get()); return true; }
+            }
+            try (Context context = getContext(response, true, bmclapiHash); InputStream input = Files.newInputStream(payload)) {
+                byte[] buffer = new byte[65536]; int count;
+                while ((count = input.read(buffer)) != -1) {
+                    if (isCancelled()) throw new InterruptedException();
+                    context.write(buffer, 0, count);
+                }
+                if (isCancelled()) throw new InterruptedException();
+                context.withResult(true);
+            }
+            return true;
+        } catch (IOException | RuntimeException e) {
+            if (isCancelled()) throw new InterruptedException();
+            LOG.warning("Native metadata download failed; falling back to Java download");
+            return false;
+        } finally {
+            if (staging != null && !FileUtils.deleteDirectoryQuietly(staging))
+                LOG.warning("Unable to remove native metadata staging directory: " + staging);
+        }
+    }
+
+    /// Attempts a native transfer when SHA-1, cache, source, and proxy requirements are compatible.
+    ///
+    /// The subclass context still performs integrity checks, final publication and cache updates.
+    /// A native failure falls back to the existing Java download implementation.
+    ///
+    /// @param source download candidate
+    /// @param checkETag whether remote ETag handling is required
+    /// @return whether the native path completed
+    /// @throws InterruptedException if cancellation occurs
+    protected boolean tryNativeDownload(DownloadCandidate source, boolean checkETag) throws InterruptedException {
+        @Nullable String expectedSha1 = nativeExpectedSha1();
+        @Nullable String executable = System.getProperty("mfcl.native.path");
+        @Nullable WebURL url = source.url();
+        if (executable == null || executable.isBlank() || !Boolean.parseBoolean(System.getProperty("mfcl.native.download.enabled", "true"))
+                || checkETag || (expectedSha1 == null ? !nativeHasIndependentIntegrity() : !DigestUtils.isSha1Digest(expectedSha1))
+                || source.connectTimeout() != null || source.readTimeout() != null
+                || url == null || !isNativeSourceEligible(url)) {
+            return false;
+        }
+        @Nullable Path staging = null;
+        try {
+            if (isCancelled()) throw new InterruptedException();
+            staging = Files.createTempDirectory("mfcl-native-transfer-");
+            Path payload = staging.resolve("payload");
+            AtomicLong lastBytes = new AtomicLong();
+            beforeDownload(url);
+            transferNative(Path.of(executable), url.href(), payload, expectedSha1, (count, total) -> {
+                long previous = lastBytes.getAndSet(count);
+                if (count >= previous) updateDownloadSpeed(count - previous);
+                if (total >= 0) updateProgress(count, total);
+            });
+            if (isCancelled()) throw new InterruptedException();
+            try (Context context = getContext(null, false, null); InputStream input = Files.newInputStream(payload)) {
+                byte[] buffer = new byte[65536];
+                int count;
+                while ((count = input.read(buffer)) != -1) {
+                    if (isCancelled()) throw new InterruptedException();
+                    context.write(buffer, 0, count);
+                }
+                if (isCancelled()) throw new InterruptedException();
+                context.withResult(true);
+            }
+            return true;
+        } catch (IOException | RuntimeException e) {
+            if (isCancelled()) throw new InterruptedException();
+            LOG.warning("Native download failed; falling back to Java download");
+            return false;
+        } finally {
+            if (staging != null && !FileUtils.deleteDirectoryQuietly(staging)) {
+                LOG.warning("Unable to remove native download staging directory: " + staging);
+            }
+        }
+    }
+
+    /// Performs a native transfer; isolated tests can replace this method with a deterministic fixture.
+    ///
+    /// @param executable native backend executable
+    /// @param url HTTPS source URL
+    /// @param destination temporary output file
+    /// @param sha1 expected SHA-1, or null when the caller verifies another digest
+    /// @param progress progress callback
+    /// @throws IOException if transfer fails
+    /// @throws InterruptedException if cancelled
+    protected void transferNative(Path executable, String url, Path destination, @Nullable String sha1,
+                                  java.util.function.BiConsumer<Long, Long> progress) throws IOException, InterruptedException {
+        @Nullable String sha512 = nativeExpectedSha512();
+        @Nullable NativeOtherDigest other = nativeExpectedOtherDigest();
+        @Nullable Path cacheDirectory = repository.getCacheDirectory();
+        @Nullable Path resumeDirectory = (sha1 != null || sha512 != null || other != null) && cacheDirectory != null
+                && cacheDirectory.getFileSystem() == java.nio.file.FileSystems.getDefault()
+                && Boolean.parseBoolean(System.getProperty("mfcl.native.download.resume.enabled", "true"))
+                ? cacheDirectory.resolve("native-resume-v1") : null;
+        if (sha1 == null && sha512 != null) {
+            NativeTransfer.downloadSha512(executable, url, destination, sha512, 1024L * 1024 * 1024, resumeDirectory, progress, this::isCancelled);
+            return;
+        }
+        if (sha1 == null && other != null) {
+            NativeTransfer.downloadOtherDigest(executable, url, destination, other.algorithm(), other.digest(),
+                    1024L * 1024 * 1024, resumeDirectory, progress, this::isCancelled);
+            return;
+        }
+        NativeTransfer.download(executable, url, destination, sha1, 1024L * 1024 * 1024, resumeDirectory, progress, this::isCancelled);
+    }
+
+    /// Allows direct HTTPS transfers, excluding hosts requiring launcher-injected API keys.
+    ///
+    /// Redirects are rejected by the native request and retried by the direct Java path so
+    /// authentication policy continues to apply to each redirect.
+    ///
+    /// @param url candidate source
+    /// @return whether the source is supported by the native path
+    public static boolean isNativeSourceEligible(WebURL url) {
+        if (!"https".equalsIgnoreCase(url.getScheme())) return false;
+        @Nullable String host = url.getHost();
+        if (host == null || host.isBlank()) return false;
+        String normalizedHost = host.toLowerCase(Locale.ROOT);
+        if (normalizedHost.equals("api.curseforge.com") || normalizedHost.endsWith(".api.curseforge.com")
+                || normalizedHost.equals("forgecdn.net") || normalizedHost.endsWith(".forgecdn.net")) return false;
+        try {
+            URI uri = URI.create(url.href());
+            if (uri.getRawUserInfo() != null || uri.getRawFragment() != null) return false;
+            return true;
+        } catch (RuntimeException e) {
+            return false;
         }
     }
 
@@ -343,7 +547,7 @@ public abstract class FetchTask<T extends @UnknownNullability Object> extends Ta
                     }
 
                     do {
-                        connection = NetworkUtils.createHttpConnection(currentURI);
+                        connection = NetworkUtils.createDirectHttpConnection(currentURI);
                         connection.setConnectTimeout((int) connectTimeout.toMillis());
                         connection.setReadTimeout((int) readTimeout.toMillis());
                         boolean keepConnection = false;
@@ -540,7 +744,7 @@ public abstract class FetchTask<T extends @UnknownNullability Object> extends Ta
                 beforeDownload(url);
                 updateProgress(0);
 
-                URLConnection conn = NetworkUtils.createConnection(url);
+                URLConnection conn = NetworkUtils.createDirectConnection(url);
                 conn.setConnectTimeout((int) connectTimeout.toMillis());
                 conn.setReadTimeout((int) readTimeout.toMillis());
                 try (Context context = getContext()) {
@@ -598,7 +802,10 @@ public abstract class FetchTask<T extends @UnknownNullability Object> extends Ta
         }, 0, 1000);
     }
 
-    private static void updateDownloadSpeed(long speed) {
+    /// Records downloaded network bytes for the shared speed indicator.
+    ///
+    /// @param speed newly transferred bytes
+    protected static void updateDownloadSpeed(long speed) {
         downloadSpeed.addAndGet(speed);
     }
 
@@ -739,6 +946,19 @@ public abstract class FetchTask<T extends @UnknownNullability Object> extends Ta
 
     public static int getDownloadExecutorConcurrency() {
         return downloadExecutorConcurrency;
+    }
+
+    /// Shares the configured global transfer limit with native batch tasks.
+    public static Executor getDownloadExecutor() { return DOWNLOAD_EXECUTOR; }
+
+    /// Reserves a transfer slot when the executor uses virtual threads.
+    public static void acquireDownloadPermit() throws InterruptedException {
+        if (SEMAPHORE != null) SEMAPHORE.acquire();
+    }
+
+    /// Releases a slot acquired by [#acquireDownloadPermit()].
+    public static void releaseDownloadPermit() {
+        if (SEMAPHORE != null) SEMAPHORE.release();
     }
 
     private static volatile boolean initialized = false;

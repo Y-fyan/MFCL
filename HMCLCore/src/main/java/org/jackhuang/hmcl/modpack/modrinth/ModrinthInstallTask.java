@@ -234,17 +234,32 @@ public class ModrinthInstallTask extends Task<Void> {
         return dependencies;
     }
 
+    /// Removes old manifest files absent from the new manifest using native comparison when available.
+    /// @param root instance run directory
+    /// @param oldFiles previous manifest entries
+    /// @param newFiles replacement manifest entries
+    /// @param cancelled owning task cancellation predicate
+    /// @throws IOException if a file cannot be removed
+    /// @throws InterruptedException if cancelled
+    static void removeObsoleteFiles(Path root, List<ModrinthManifest.File> oldFiles,
+            List<ModrinthManifest.File> newFiles, java.util.function.BooleanSupplier cancelled) throws IOException, InterruptedException {
+        boolean @Nullable [] removed = NativeModrinthUpdate.tryFindRemoved(oldFiles, newFiles, cancelled);
+        Path absoluteRoot = root.toAbsolutePath().normalize();
+        List<Path> pending = new ArrayList<>();
+        for (int index = 0; index < oldFiles.size(); index++) {
+            if (cancelled.getAsBoolean()) throw new InterruptedException();
+            ModrinthManifest.File old = oldFiles.get(index); Path oldFile = root.resolve(old.path());
+            if (!Files.exists(oldFile)) continue;
+            if (removed == null ? newFiles.stream().noneMatch(old::equals) : removed[index])
+                pending.add(NativeManagedRemoval.validateRemovalPath(absoluteRoot, old.path()));
+        }
+        NativeManagedRemoval.removeValidated(absoluteRoot, pending, cancelled);
+    }
+
     @Override
     public void execute() throws Exception {
         if (config != null) {
-            // For update, remove mods not listed in new manifest
-            for (ModrinthManifest.File oldManifestFile : config.getManifest().getFiles()) {
-                Path oldFile = run.resolve(oldManifestFile.path());
-                if (!Files.exists(oldFile)) continue;
-                if (manifest.getFiles().stream().noneMatch(oldManifestFile::equals)) {
-                    Files.deleteIfExists(oldFile);
-                }
-            }
+            removeObsoleteFiles(run, config.getManifest().getFiles(), manifest.getFiles(), this::isCancelled);
         }
 
         Path root = repository.getLayout().getInstanceRoot(instanceId);

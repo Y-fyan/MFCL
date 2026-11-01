@@ -64,7 +64,7 @@ public class ModpackInstallTask<T> extends Task<Void> {
 
 
         for (String subDirectory : subDirectories) {
-            new Unzipper(modpackFile, dest)
+            Unzipper unzipper = new Unzipper(modpackFile, dest)
                     .setSubDirectory(subDirectory)
                     .setTerminateIfSubDirectoryNotExists()
                     .setReplaceExistentFile(true)
@@ -86,7 +86,9 @@ public class ModpackInstallTask<T> extends Task<Void> {
                             String oldHash = files.get(relativePath).getHash();
                             return Objects.equals(oldHash, fileHash);
                         }
-                    }).unzip();
+                    });
+            if (Boolean.parseBoolean(System.getProperty("mfcl.native.modpack.enabled", "true"))) unzipper.setNativeExtraction();
+            unzipper.unzip();
         }
 
         // If old modpack have this entry, and new modpack deleted it. Delete this file.

@@ -138,7 +138,7 @@ public final class MfmclRootPage extends StackPane implements DecoratorPage {
 
     /// The window title label, styled directly because the decorator title bar
     /// is outside this page's stylesheet subtree.
-    private final Label windowTitle = new Label("MFMCL");
+    private final Label windowTitle = new Label("MFCL");
 
     /// The page visible before the account page opened.
     private @Nullable Node previousPage;

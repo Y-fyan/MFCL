@@ -18,6 +18,7 @@
 package org.jackhuang.hmcl.util.platform;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Unmodifiable;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -281,6 +282,12 @@ public final class CommandBuilder {
 
     public List<String> asList() {
         return raw.stream().map(i -> i.arg).collect(Collectors.toList());
+    }
+
+    /// Returns a snapshot of arguments read from JVM option files.
+    /// @return immutable argument list in file order
+    public @Unmodifiable List<String> externalArgumentsSnapshot() {
+        return List.copyOf(external);
     }
 
     public List<String> asMutableList() {

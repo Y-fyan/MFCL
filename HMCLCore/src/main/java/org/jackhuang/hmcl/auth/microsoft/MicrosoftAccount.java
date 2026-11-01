@@ -117,20 +117,28 @@ public final class MicrosoftAccount extends OAuthAccount {
 
     @Override
     public AuthInfo logInWhenCredentialsExpired() throws AuthenticationException {
-        MicrosoftSession acquiredSession = service.authenticate(OAuth.GrantFlow.DEVICE);
-        if (!Objects.equals(profileID, acquiredSession.profile().id())) {
-            throw new WrongAccountException(profileID, acquiredSession.profile().id());
-        }
-
-        if (acquiredSession.profile() == null) {
-            session = service.refresh(acquiredSession);
-        } else {
-            session = acquiredSession;
-        }
-
+        session = reauthenticate(service, profileID);
         authenticated = true;
         invalidate();
         return session.toAuthInfo();
+    }
+
+    /// Refreshes profile-less sessions before verifying the selected account.
+    static MicrosoftSession reauthenticate(MicrosoftService service, UUID profileID) throws AuthenticationException {
+        MicrosoftSession acquiredSession = service.authenticate(OAuth.GrantFlow.DEVICE);
+        if (acquiredSession.profile() == null) {
+            acquiredSession = service.refresh(acquiredSession);
+        }
+        if (acquiredSession.profile() == null) {
+            throw new ServerResponseMalformedException("Profile is missing");
+        }
+        if (!Objects.equals(profileID, acquiredSession.profile().id())) {
+            throw new WrongAccountException(profileID, acquiredSession.profile().id());
+        }
+        if (!acquiredSession.hasProfileName()) {
+            throw new ServerResponseMalformedException("Profile name is missing");
+        }
+        return acquiredSession;
     }
 
     @Override

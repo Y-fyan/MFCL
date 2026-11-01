@@ -22,6 +22,7 @@ import org.jackhuang.hmcl.auth.AuthenticationException;
 import org.jackhuang.hmcl.auth.OAuth;
 import org.jackhuang.hmcl.event.Event;
 import org.jackhuang.hmcl.event.EventManager;
+import org.jackhuang.hmcl.nativebridge.NativeBackend;
 import org.jackhuang.hmcl.theme.Themes;
 import org.jackhuang.hmcl.util.StringUtils;
 import org.jackhuang.hmcl.util.io.IOUtils;
@@ -29,6 +30,9 @@ import org.jackhuang.hmcl.util.io.JarUtils;
 import org.jackhuang.hmcl.util.io.NetworkUtils;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.nio.file.Path;
+import java.util.List;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.HashMap;
@@ -122,9 +126,43 @@ public final class OAuthServer extends NanoHTTPD implements OAuth.Session {
         } else {
             return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_HTML, "");
         }
-        String parameters = session.getQueryParameterString();
+        handleQuery(session.getQueryParameterString());
 
-        Map<String, String> query = mapOf(NetworkUtils.parseQuery(parameters));
+        String html;
+        try {
+            html = renderResponseHtml();
+        } catch (IOException e) {
+            LOG.error("Failed to load html", e);
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_HTML, "");
+        }
+        thread(() -> {
+            try {
+                Thread.sleep(1000);
+                stop();
+            } catch (InterruptedException e) {
+                LOG.error("Failed to sleep for 1 second");
+            }
+        });
+        return newFixedLengthResponse(Response.Status.OK, "text/html; charset=UTF-8", html);
+    }
+
+    /// Builds the localized callback page using the current launcher theme.
+    /// @return rendered HTML
+    /// @throws IOException if the bundled page cannot be loaded
+    static String renderResponseHtml() throws IOException {
+        return IOUtils.readFullyAsString(OAuthServer.class.getResourceAsStream("/assets/microsoft_auth.html"))
+                .replace("%style%", Themes.getTheme().toColorScheme().toStyleSheet().replace("-monet", "--monet"))
+                .replace("%lang%", Locale.getDefault().toLanguageTag())
+                .replace("%success%", i18n("message.success"))
+                .replace("%ok%", i18n("button.ok"))
+                .replace("%close_page%", i18n("account.methods.microsoft.close_page"));
+    }
+
+    /// Parses and validates the authorization callback before completing its session.
+    /// @param parameters raw callback query, or null
+    void handleQuery(@org.jetbrains.annotations.Nullable String parameters) {
+        var nativeQuery = NativeOAuthQuery.tryParse(parameters);
+        Map<String, String> query = nativeQuery != null ? nativeQuery : mapOf(NetworkUtils.parseQuery(parameters));
 
         String code = query.get("code");
         if (code != null) {
@@ -143,27 +181,6 @@ public final class OAuthServer extends NanoHTTPD implements OAuth.Session {
             future.completeExceptionally(new AuthenticationException("Failed to authenticate: missing authorization code"));
         }
 
-        String html;
-        try {
-            html = IOUtils.readFullyAsString(OAuthServer.class.getResourceAsStream("/assets/microsoft_auth.html"))
-                    .replace("%style%", Themes.getTheme().toColorScheme().toStyleSheet().replace("-monet", "--monet"))
-                    .replace("%lang%", Locale.getDefault().toLanguageTag())
-                    .replace("%success%", i18n("message.success"))
-                    .replace("%ok%", i18n("button.ok"))
-                    .replace("%close_page%", i18n("account.methods.microsoft.close_page"));
-        } catch (IOException e) {
-            LOG.error("Failed to load html", e);
-            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_HTML, "");
-        }
-        thread(() -> {
-            try {
-                Thread.sleep(1000);
-                stop();
-            } catch (InterruptedException e) {
-                LOG.error("Failed to sleep for 1 second");
-            }
-        });
-        return newFixedLengthResponse(Response.Status.OK, "text/html; charset=UTF-8", html);
     }
 
     @Override
@@ -185,6 +202,21 @@ public final class OAuthServer extends NanoHTTPD implements OAuth.Session {
                 throw new MicrosoftAuthenticationNotSupportedException();
             }
 
+            String binary = System.getProperty("mfcl.native.path");
+            if (binary != null && !binary.isBlank() && Boolean.parseBoolean(System.getProperty("mfcl.native.microsoft.enabled", "true"))) {
+                try {
+                    Path executable = Path.of(binary);
+                    InetAddress address = InetAddress.getByName("localhost");
+                    if (address.isLoopbackAddress() && NativeBackend.supportsCapabilities(executable, "oauth_callback_server_v1"))
+                        return NativeOAuthSession.start(executable, address.getHostAddress(), List.of(29111, 29112, 29113, 29114, 29115),
+                                OAuthServer::renderResponseHtml);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Native callback startup was interrupted", e);
+                } catch (IOException | RuntimeException e) {
+                    LOG.warning("Native OAuth callback unavailable; using Java listener");
+                }
+            }
             IOException exception = null;
             for (int port : new int[]{29111, 29112, 29113, 29114, 29115}) {
                 try {

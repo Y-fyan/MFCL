@@ -21,10 +21,14 @@ import kala.compress.archivers.zip.ZipArchiveEntry;
 import kala.compress.archivers.zip.ZipArchiveReader;
 import org.jackhuang.hmcl.util.StringUtils;
 import org.jackhuang.hmcl.util.platform.OperatingSystem;
+import org.jackhuang.hmcl.nativebridge.NativeBackend;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 
 public final class Unzipper {
     private final Path zipFile, dest;
@@ -32,6 +36,15 @@ public final class Unzipper {
     private boolean terminateIfSubDirectoryNotExists = false;
     private String subDirectory = "/";
     private EntryFilter filter;
+    /// Whether this caller allows the Rust backend to decompress into a temporary stage.
+    private boolean nativeExtraction;
+
+    /// Enables native staging; Java still applies this unzipper's filters and publication rules.
+    /// @return this unzipper
+    public Unzipper setNativeExtraction() {
+        nativeExtraction = true;
+        return this;
+    }
 
     /// Decompress the given zip file to a directory.
     ///
@@ -84,7 +97,43 @@ public final class Unzipper {
                 : new CopyOption[]{};
 
         long entryCount = 0L;
+        @Nullable Path temporaryParent = null;
+        @Nullable BasicFileAttributes archiveBefore = null;
+        @Nullable Object changedBefore = null;
+        if (nativeExtraction) {
+            try {
+                archiveBefore = Files.readAttributes(zipFile, BasicFileAttributes.class);
+                changedBefore = Files.getAttribute(zipFile, "unix:ctime");
+            } catch (IOException | RuntimeException ignored) {
+                // The original Java reader remains available on unsupported filesystems.
+            }
+        }
         try (ZipArchiveReader reader = CompressingUtils.openZipFile(zipFile)) {
+            @Nullable Path stage = null;
+            @Nullable String executable = System.getProperty("mfcl.native.path");
+            if (nativeExtraction && executable != null && !executable.isBlank()
+                    && Boolean.parseBoolean(System.getProperty("mfcl.native.natives.extract.enabled", "true"))
+                    && zipFile.getFileSystem() == FileSystems.getDefault()
+                    && archiveBefore != null && archiveBefore.fileKey() != null && changedBefore != null) {
+                try {
+                    temporaryParent = Files.createTempDirectory("mfcl-native-zip-");
+                    String prefix = StringUtils.addSuffix(subDirectory, "/");
+                    stage = "/".equals(prefix)
+                            ? NativeBackend.extractZip(Path.of(executable), zipFile, temporaryParent)
+                            : NativeBackend.extractZip(Path.of(executable), zipFile, temporaryParent, prefix.substring(1));
+                    BasicFileAttributes after = Files.readAttributes(zipFile, BasicFileAttributes.class);
+                    if (archiveBefore.size() != after.size()
+                            || !archiveBefore.lastModifiedTime().equals(after.lastModifiedTime())
+                            || !archiveBefore.fileKey().equals(after.fileKey())) stage = null;
+                    if (!changedBefore.equals(Files.getAttribute(zipFile, "unix:ctime"))) stage = null;
+                    if (stage != null && !stageMatchesArchive(reader, stage, prefix)) stage = null;
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new InterruptedIOException("Native extraction interrupted");
+                } catch (IOException | RuntimeException e) {
+                    stage = null;
+                }
+            }
             String pathPrefix = StringUtils.addSuffix(subDirectory, "/");
 
             for (ZipArchiveEntry entry : reader.getEntries()) {
@@ -130,7 +179,8 @@ public final class Unzipper {
                         } catch (FileAlreadyExistsException ignored) {
                         }
                     } else {
-                        try (InputStream input = reader.getInputStream(entry)) {
+                        try (InputStream input = stage == null ? reader.getInputStream(entry)
+                                : Files.newInputStream(stage.resolve(entry.getName()))) {
                             Files.copy(input, destFile, copyOptions);
                         } catch (FileAlreadyExistsException e) {
                             if (replaceExistentFile)
@@ -147,7 +197,33 @@ public final class Unzipper {
             if (entryCount == 0 && !"/".equals(subDirectory) && !terminateIfSubDirectoryNotExists) {
                 throw new NoSuchFileException("Subdirectory " + subDirectory + " does not exist in the zip file.");
             }
+        } finally {
+            if (temporaryParent != null) FileUtils.deleteDirectoryQuietly(temporaryParent);
         }
+    }
+
+    /// Validates that the native stage represents the same ordinary ZIP entries Java will read.
+    /// @param reader Java archive reader
+    /// @param stage private extraction directory
+    /// @param prefix normalized Java ZIP subtree prefix
+    /// @return whether each entry has a corresponding staged file or directory
+    /// @throws IOException if a staged entry cannot be inspected
+    private static boolean stageMatchesArchive(ZipArchiveReader reader, Path stage, String prefix) throws IOException {
+        for (ZipArchiveEntry entry : reader.getEntries()) {
+            String name = entry.getName();
+            if (!FileUtils.normalizePath(name).startsWith(prefix)) continue;
+            if (name.isEmpty() || name.indexOf('\\') >= 0 || entry.isUnixSymlink()) return false;
+            Path relative = Path.of(name);
+            if (relative.isAbsolute() || !relative.normalize().equals(relative)) return false;
+            Path path = stage.resolve(relative).normalize();
+            if (!path.startsWith(stage)) return false;
+            if (entry.isDirectory()) {
+                if (!Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) return false;
+            } else if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) || Files.size(path) != entry.getSize()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @FunctionalInterface

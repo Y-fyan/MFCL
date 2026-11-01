@@ -117,9 +117,11 @@ public class DefaultGameBuilder extends GameBuilder {
     public Task<?> buildAsync() {
         checkOpen();
         try {
-            @Nullable String gameVersion = (String) components.get(GameComponentType.GAME);
-            if (gameVersion == null)
+            @Nullable Object gameComponent = components.get(GameComponentType.GAME);
+            if (gameComponent == null)
                 throw new IllegalStateException("GameBuilder.gameVersion must be set");
+            String gameVersion = gameComponent instanceof ComponentRemoteVersion remote
+                    ? remote.getGameVersion().toString() : (String) gameComponent;
 
             var hints = new ArrayList<Task.StagesHint>();
 
@@ -145,8 +147,9 @@ public class DefaultGameBuilder extends GameBuilder {
                             : repository.getBaseDirectory();
             Path modsDirectory = runDirectory.resolve("mods");
 
-            Task<GameInstanceManifest> libraryTask = dependencyManager.installUnpublishedComponentAsync(
-                    initialManifest, modsDirectory, gameVersion, GameComponentType.GAME, gameVersion);
+            Task<GameInstanceManifest> libraryTask = gameComponent instanceof ComponentRemoteVersion remote
+                    ? dependencyManager.installUnpublishedComponentAsync(initialManifest, modsDirectory, remote)
+                    : dependencyManager.installUnpublishedComponentAsync(initialManifest, modsDirectory, gameVersion, GameComponentType.GAME, gameVersion);
 
             for (Map.Entry<GameComponentType, Object> entry : components.entrySet()) {
                 GameComponentType componentType = entry.getKey();

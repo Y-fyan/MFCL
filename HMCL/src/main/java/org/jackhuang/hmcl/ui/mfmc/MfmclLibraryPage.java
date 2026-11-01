@@ -21,6 +21,7 @@ import javafx.beans.value.ObservableValue;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.ColumnConstraints;
@@ -66,6 +67,9 @@ public final class MfmclLibraryPage extends VBox {
     /// The scrollable content wrapper.
     private final VBox body = new VBox();
 
+    /// The viewport grows the empty state to fill the available content area.
+    private final ScrollPane scroll = MfmclUi.scroll(body);
+
     /// The repository snapshot used to refresh the library after loading.
     private final ObservableValue<HMCLGameRepositorySnapshot> repositorySnapshot =
             BindingMapping.of(GameDirectoryManager.selectedRepositoryProperty())
@@ -97,10 +101,11 @@ public final class MfmclLibraryPage extends VBox {
         grid.getStyleClass().add("mfmcl-instance-grid");
         grid.setHgap(24);
         grid.setVgap(24);
+        VBox.setVgrow(grid, Priority.ALWAYS);
         body.getStyleClass().add("mfmcl-page-body");
         body.getChildren().setAll(grid);
 
-        getChildren().setAll(header, MfmclUi.scroll(body));
+        getChildren().setAll(header, scroll);
 
         widthProperty().addListener((observable, oldValue, newValue) -> rebuildIfNeeded());
         FXUtils.onChangeAndOperate(repositorySnapshot, snapshot -> refresh());
@@ -118,8 +123,10 @@ public final class MfmclLibraryPage extends VBox {
 
         grid.getChildren().clear();
         grid.getColumnConstraints().clear();
+        setEmptyLayout(scroll, grid, instances.isEmpty());
 
         if (instances.isEmpty()) {
+            columns = 0;
             grid.getChildren().add(emptyState());
             return;
         }
@@ -138,6 +145,12 @@ public final class MfmclLibraryPage extends VBox {
             GridPane.setHgrow(card, Priority.ALWAYS);
             grid.add(card, i % columns, i / columns);
         }
+    }
+
+    /// Centers the empty state while allowing populated libraries to scroll normally.
+    static void setEmptyLayout(ScrollPane scroll, GridPane grid, boolean empty) {
+        scroll.setFitToHeight(empty);
+        grid.setAlignment(empty ? Pos.CENTER : Pos.TOP_LEFT);
     }
 
     /// Rebuilds the grid when the window crosses the two-column threshold.
@@ -214,7 +227,6 @@ public final class MfmclLibraryPage extends VBox {
         box.setAlignment(Pos.CENTER);
         box.getStyleClass().add("mfmcl-empty-state");
         box.setMaxWidth(420);
-        GridPane.setColumnSpan(box, Math.max(1, columns));
         return box;
     }
 

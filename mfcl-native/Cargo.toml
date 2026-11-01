@@ -1,0 +1,26 @@
+[package]
+name = "mfcl-native"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.89"
+license = "GPL-3.0-or-later"
+description = "Experimental native backend for MFCL"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["raw_value"] }
+sha2 = "0.10"
+sha1 = "0.10"
+tempfile = "3"
+ureq = { version = "2.12.1", default-features = false, features = ["tls"] }
+url = "2.5"
+md-5 = "0.10"
+zip = { version = "2.4.2", default-features = false, features = ["deflate"] }
+regex = "1.13.1"
+base64 = "0.22"
+libc = "0.2"
+lzma-rs = "=0.3.0"
+getrandom = "=0.2.17"
+
+[features]
+auth-test-endpoints = []

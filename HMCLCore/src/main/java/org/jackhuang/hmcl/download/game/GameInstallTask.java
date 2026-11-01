@@ -21,9 +21,13 @@ import org.jackhuang.hmcl.download.DefaultDependencyManager;
 import org.jackhuang.hmcl.game.GameComponentType;
 import org.jackhuang.hmcl.game.GameInstanceManifest;
 import org.jackhuang.hmcl.game.GameInstancePatch;
+import org.jackhuang.hmcl.game.DownloadInfo;
+import org.jackhuang.hmcl.game.DownloadType;
 import org.jackhuang.hmcl.task.Task;
+import org.jackhuang.hmcl.task.GetTask;
 import org.jackhuang.hmcl.util.gson.JsonUtils;
 import org.jetbrains.annotations.NotNullByDefault;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -48,7 +52,7 @@ public class GameInstallTask extends Task<GameInstancePatch> {
     private final GameRemoteVersion remote;
 
     /// Task that downloads the selected version's manifest JSON.
-    private final GameInstanceJsonDownloadTask downloadTask;
+    private final Task<String> downloadTask;
 
     /// Downloads scheduled after the remote manifest has been decoded.
     private final List<Task<?>> dependencies = new ArrayList<>(1);
@@ -62,7 +66,7 @@ public class GameInstallTask extends Task<GameInstancePatch> {
         this.dependencyManager = dependencyManager;
         this.manifest = manifest;
         this.remote = remoteVersion;
-        this.downloadTask = new GameInstanceJsonDownloadTask(remoteVersion.getGameVersion().toString(), dependencyManager);
+        this.downloadTask = new GetTask(dependencyManager.getDownloadProvider().getDownloadCandidates(remoteVersion));
     }
 
     /// {@inheritDoc}
@@ -80,17 +84,32 @@ public class GameInstallTask extends Task<GameInstancePatch> {
     /// {@inheritDoc}
     @Override
     public boolean isRelyingOnDependencies() {
-        return false;
+        return true;
+    }
+
+    /// Builds a base-game patch using Rust projection or the original Java parser.
+    /// @param json downloaded game manifest
+    /// @param version selected game version
+    /// @return base-game patch
+    /// @throws java.io.IOException if interrupted
+    static GameInstancePatch createPatch(String json, String version) throws java.io.IOException {
+        @Nullable GameInstancePatch nativePatch = NativeGameManifest.tryPatch(json, version);
+        return nativePatch != null ? nativePatch : GameInstancePatch.fromManifest(
+                JsonUtils.fromNonNullJson(json, GameInstanceManifest.class), GameComponentType.GAME.getPatchId(),
+                version, GameInstancePatch.PRIORITY_MC).withJar(null);
+    }
+
+    /// Reads client mappings using the native base-game projection when supported.
+    public static @Nullable DownloadInfo readClientMappings(String json, String version) throws java.io.IOException {
+        @Nullable GameInstancePatch nativePatch = NativeGameManifest.tryPatch(json, version);
+        if (nativePatch != null) return nativePatch.downloads() == null ? null : nativePatch.downloads().get(DownloadType.CLIENT_MAPPINGS);
+        return JsonUtils.fromNonNullJson(json, GameInstanceManifest.class).getDownloads().get(DownloadType.CLIENT_MAPPINGS);
     }
 
     /// Decodes the downloaded game manifest and schedules its files without saving repository state.
     @Override
     public void execute() throws Exception {
-        GameInstancePatch patch = GameInstancePatch.fromManifest(
-                JsonUtils.fromNonNullJson(downloadTask.getResult(), GameInstanceManifest.class),
-                GameComponentType.GAME.getPatchId(),
-                remote.getGameVersion().toString(),
-                GameInstancePatch.PRIORITY_MC).withJar(null);
+        GameInstancePatch patch = createPatch(downloadTask.getResult(), remote.getGameVersion().toString());
         setResult(patch);
 
         GameInstanceManifest newManifest = new GameInstanceManifest(this.manifest.id()).addPatch(patch).reconstructByPatches();
@@ -99,9 +118,7 @@ public class GameInstallTask extends Task<GameInstancePatch> {
                 Task.allOf(
                         new GameAssetDownloadTask(dependencyManager, newManifest, GameAssetDownloadTask.DOWNLOAD_INDEX_FORCIBLY, true),
                         new GameLibrariesTask(dependencyManager, newManifest, true)
-                ).withRunAsync(() -> {
-                    // ignore failure
-                })
+                )
         ));
     }
 

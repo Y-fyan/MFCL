@@ -67,11 +67,17 @@ public class ForgeOldInstallTask extends Task<GameInstancePatch> {
 
     @Override
     public void execute() throws Exception {
+        NativeForgeProfiles.LegacyParsed nativeProfile = NativeForgeProfiles.tryReadLegacy(installer, this::isCancelled);
         try (ZipFile zipFile = new ZipFile(installer.toFile())) {
-            InputStream stream = zipFile.getInputStream(zipFile.getEntry("install_profile.json"));
-            if (stream == null)
-                throw new ArtifactMalformedException("Malformed forge installer file, install_profile.json does not exist.");
-            ForgeInstallProfile installProfile = JsonUtils.fromNonNullJsonFully(stream, ForgeInstallProfile.class);
+            ForgeInstallProfile installProfile = nativeProfile != null
+                    && org.jackhuang.hmcl.nativebridge.NativeBackend.isFileHashObservationCurrent(installer, nativeProfile.observation())
+                    ? nativeProfile.profile() : null;
+            if (installProfile == null) {
+                InputStream stream = zipFile.getInputStream(zipFile.getEntry("install_profile.json"));
+                if (stream == null)
+                    throw new ArtifactMalformedException("Malformed forge installer file, install_profile.json does not exist.");
+                installProfile = JsonUtils.fromNonNullJsonFully(stream, ForgeInstallProfile.class);
+            }
 
             // unpack the universal jar in the installer file.
             Library forgeLibrary = new Library(installProfile.install().getPath());
@@ -80,9 +86,14 @@ public class ForgeOldInstallTask extends Task<GameInstancePatch> {
             Files.createDirectories(forgeFile.getParent());
 
             ZipEntry forgeEntry = zipFile.getEntry(installProfile.install().getFilePath());
-            try (InputStream is = zipFile.getInputStream(forgeEntry);
-                 OutputStream os = Files.newOutputStream(forgeFile, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
-                is.transferTo(os);
+            boolean copied = nativeProfile != null && installProfile == nativeProfile.profile() && forgeEntry != null
+                    && NativeForgeProfiles.tryCopyLegacyEmbedded(installer, installProfile.install().getFilePath(), forgeFile,
+                    nativeProfile.observation(), this::isCancelled);
+            if (!copied) {
+                try (InputStream is = zipFile.getInputStream(forgeEntry);
+                     OutputStream os = Files.newOutputStream(forgeFile, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
+                    is.transferTo(os);
+                }
             }
 
             setResult(GameInstancePatch.fromManifest(

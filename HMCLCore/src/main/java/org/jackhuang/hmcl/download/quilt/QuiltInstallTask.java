@@ -21,6 +21,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import org.jackhuang.hmcl.download.DefaultDependencyManager;
 import org.jackhuang.hmcl.download.DownloadProvider;
+import org.jackhuang.hmcl.download.NativeLoaderPlanner;
+import org.jackhuang.hmcl.download.LoaderLibraryParser;
 import org.jackhuang.hmcl.download.UnsupportedInstallationException;
 import org.jackhuang.hmcl.game.*;
 import org.jackhuang.hmcl.task.GetTask;
@@ -79,12 +81,15 @@ public final class QuiltInstallTask extends Task<GameInstancePatch> {
 
     @Override
     public boolean isRelyingOnDependencies() {
-        return false;
+        return true;
     }
 
     @Override
-    public void execute() {
-        setResult(getPatch(JsonUtils.GSON.fromJson(launchMetaTask.getResult(), QuiltInfo.class), remote.getSelfVersion()));
+    public void execute() throws InterruptedException {
+        @Nullable GameInstancePatch patch = NativeLoaderPlanner.tryPlan(GameComponentType.QUILT,
+                launchMetaTask.getResult(), remote.getSelfVersion(), this::isCancelled);
+        if (patch == null) patch = getPatch(JsonUtils.GSON.fromJson(launchMetaTask.getResult(), QuiltInfo.class), remote.getSelfVersion());
+        setResult(patch);
 
         dependencies.add(new org.jackhuang.hmcl.download.game.GameLibrariesTask(dependencyManager, manifest, true, getResult().getLibraries()));
     }
@@ -113,7 +118,7 @@ public final class QuiltInstallTask extends Task<GameInstancePatch> {
         // Don't know the purpose of ignoring client libraries.
         for (String side : new String[]{"common", "server"}) {
             for (JsonElement element : librariesObject.getAsJsonArray(side)) {
-                libraries.add(JsonUtils.GSON.fromJson(element, Library.class));
+                libraries.add(LoaderLibraryParser.parse(element));
             }
         }
 

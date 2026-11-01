@@ -242,7 +242,55 @@ tasks.shadowJar {
     }
 }
 
+// Build a native backend for the current JVM platform by default. Cross-platform JARs retain
+// the Java fallback when the running platform has no embedded backend; use the documented switch
+// when a Java-only development build is required.
+val nativeBundleEnabled = providers.gradleProperty("mfcl.native.bundle").map { it.toBoolean() }.orElse(true)
+val nativeOs = System.getProperty("os.name").lowercase()
+val nativeArch = System.getProperty("os.arch").lowercase()
+val nativePlatform = when {
+    nativeOs.contains("linux") && nativeArch in setOf("amd64", "x86_64") -> "linux-x86_64" to "x86_64-unknown-linux-gnu"
+    nativeOs.contains("linux") && nativeArch in setOf("aarch64", "arm64") -> "linux-aarch64" to "aarch64-unknown-linux-gnu"
+    nativeOs.contains("mac") && nativeArch in setOf("amd64", "x86_64") -> "macos-x86_64" to "x86_64-apple-darwin"
+    nativeOs.contains("mac") && nativeArch in setOf("aarch64", "arm64") -> "macos-aarch64" to "aarch64-apple-darwin"
+    nativeOs.contains("windows") && nativeArch in setOf("amd64", "x86_64") -> "windows-x86_64" to "x86_64-pc-windows-msvc"
+    nativeOs.contains("windows") && nativeArch in setOf("aarch64", "arm64") -> "windows-aarch64" to "aarch64-pc-windows-msvc"
+    else -> null
+}
+val nativeBinaryName = if (nativeOs.contains("windows")) "mfcl-native.exe" else "mfcl-native"
+val nativeDirectory = rootProject.layout.projectDirectory.dir("mfcl-native")
+val nativeBinary = nativeDirectory.file("target/${nativePlatform?.second ?: "unsupported"}/release/$nativeBinaryName")
+val buildMfclNative = tasks.register<Exec>("buildMfclNative") {
+    group = "build"
+    description = "Build the Rust backend for the current platform"
+    onlyIf { nativeBundleEnabled.get() && nativePlatform != null }
+    workingDir(nativeDirectory.asFile)
+    environment("CARGO_TARGET_DIR", nativeDirectory.dir("target").asFile.absolutePath)
+    commandLine("cargo", "build", "--locked", "--release", "--target", nativePlatform?.second ?: "unsupported")
+    inputs.files(fileTree(nativeDirectory) { include("src/**", "Cargo.toml", "Cargo.lock") })
+    inputs.property("nativeTarget", nativePlatform?.second ?: "unsupported")
+    inputs.property("rustcVersion", providers.exec { commandLine("rustc", "--version", "--verbose") }.standardOutput.asText)
+    inputs.property("rustFlags", providers.environmentVariable("RUSTFLAGS").orElse(""))
+    inputs.property("encodedRustFlags", providers.environmentVariable("CARGO_ENCODED_RUSTFLAGS").orElse(""))
+    inputs.property("rustupToolchain", providers.environmentVariable("RUSTUP_TOOLCHAIN").orElse(""))
+    outputs.file(nativeBinary)
+}
+
+tasks.test {
+    systemProperty("mfcl.test.native.bundle.expected", nativeBundleEnabled.get() && nativePlatform != null)
+}
+
 tasks.processResources {
+    dependsOn(buildMfclNative)
+    inputs.property("mfclNativeBundleEnabled", nativeBundleEnabled)
+    if (nativePlatform != null) {
+        into("assets/mfcl/native/${nativePlatform.first}") {
+            from(provider { if (nativeBundleEnabled.get()) listOf(nativeBinary.asFile) else emptyList() })
+        }
+        into("META-INF/mfcl-native-licenses") {
+            from(provider { if (nativeBundleEnabled.get()) listOf(nativeDirectory.dir("licenses").asFile) else emptyList() })
+        }
+    }
     dependsOn(upsideDownTranslate)
     dependsOn(createLocaleNamesResourceBundle)
     dependsOn(createLanguageList)

@@ -63,7 +63,28 @@ public record GameInstanceManifest(
         @Nullable @Unmodifiable JsonObject rawJson
 ) {
 
+    /// Merges inheritance through Rust when available, retaining the Java implementation as fallback.
+    /// @param parent resolved parent manifest
+    /// @return merged manifest
     GameInstanceManifest merge(GameInstanceManifest parent) {
+        @Nullable String executable = System.getProperty("mfcl.native.path");
+        if (executable != null && !executable.isBlank()
+                && Boolean.parseBoolean(System.getProperty("mfcl.native.instances.enabled", "true"))) {
+            try {
+                return NativeManifestMerge.merge(java.nio.file.Path.of(executable), this, parent);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (IOException | RuntimeException e) {
+                org.jackhuang.hmcl.util.logging.Logger.LOG.warning("Native manifest merge failed; using Java merge");
+            }
+        }
+        return mergeJava(parent);
+    }
+
+    /// Merges this manifest with its resolved parent using the legacy Java rules.
+    /// @param parent resolved parent manifest
+    /// @return merged manifest
+    GameInstanceManifest mergeJava(GameInstanceManifest parent) {
         return new GameInstanceManifest(
                 id,
                 minecraftArguments == null ? parent.minecraftArguments : minecraftArguments,
@@ -675,6 +696,22 @@ public record GameInstanceManifest(
 
         if (patches() == null || patches().isEmpty()) {
             return this;
+        }
+
+        @Nullable String executable = System.getProperty("mfcl.native.path");
+        if (executable != null && !executable.isBlank()
+                && Boolean.parseBoolean(System.getProperty("mfcl.native.instances.enabled", "true"))) {
+            try {
+                Builder empty = new Builder(); empty.setId(id());
+                GameInstanceManifest merged = NativeManifestMerge.applyPatches(java.nio.file.Path.of(executable), this, empty.toManifest(), false);
+                Builder result = new Builder(merged);
+                result.setJar(jar() == null ? id() : jar()); result.setRoot(true); result.setPatches(patches());
+                return result.toManifest();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (IOException | RuntimeException e) {
+                org.jackhuang.hmcl.util.logging.Logger.LOG.warning("Native patch reconstruction failed; using Java merge");
+            }
         }
 
         var builder = new GameInstanceManifest.Builder();

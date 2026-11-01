@@ -21,6 +21,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import org.jackhuang.hmcl.download.DefaultDependencyManager;
 import org.jackhuang.hmcl.download.DownloadProvider;
+import org.jackhuang.hmcl.download.NativeLoaderPlanner;
+import org.jackhuang.hmcl.download.LoaderLibraryParser;
 import org.jackhuang.hmcl.download.UnsupportedInstallationException;
 import org.jackhuang.hmcl.download.game.GameLibrariesTask;
 import org.jackhuang.hmcl.game.*;
@@ -29,6 +31,7 @@ import org.jackhuang.hmcl.task.Task;
 import org.jackhuang.hmcl.util.gson.JsonSerializable;
 import org.jackhuang.hmcl.util.gson.JsonUtils;
 import org.jackhuang.hmcl.util.versioning.GameVersionNumber;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.util.*;
@@ -85,21 +88,29 @@ public final class FabricInstallTask extends Task<GameInstancePatch> {
 
     @Override
     public boolean isRelyingOnDependencies() {
-        return false;
+        return true;
     }
 
     @Override
-    public void execute() throws IOException {
-        FabricInfo fabricInfo = JsonUtils.GSON.fromJson(launchMetaTask.getResult(), FabricInfo.class);
-        if (fabricInfo == null)
-            throw new IOException("Fabric metadata is invalid");
-
-        setResult(getPatch(fabricInfo, remote.getGameVersion(), remote.getSelfVersion()));
+    public void execute() throws IOException, InterruptedException {
+        @Nullable GameInstancePatch patch = NativeLoaderPlanner.tryPlan(GameComponentType.FABRIC,
+                launchMetaTask.getResult(), remote.getSelfVersion(), this::isCancelled);
+        if (patch == null) {
+            FabricInfo fabricInfo = JsonUtils.GSON.fromJson(launchMetaTask.getResult(), FabricInfo.class);
+            if (fabricInfo == null) throw new IOException("Fabric metadata is invalid");
+            patch = getPatch(fabricInfo, remote.getGameVersion(), remote.getSelfVersion());
+        }
+        setResult(patch);
 
         dependencies.add(new GameLibrariesTask(dependencyManager, manifest, true, getResult().getLibraries()));
     }
 
-    private GameInstancePatch getPatch(FabricInfo fabricInfo, GameVersionNumber gameVersion, String loaderVersion) {
+    /// Builds a Fabric patch from already parsed Java metadata.
+    /// @param fabricInfo parsed metadata
+    /// @param gameVersion target game version
+    /// @param loaderVersion loader version
+    /// @return the Java fallback patch
+    private static GameInstancePatch getPatch(FabricInfo fabricInfo, GameVersionNumber gameVersion, String loaderVersion) {
         JsonObject launcherMeta = fabricInfo.launcherMeta;
         Arguments arguments = new Arguments();
 
@@ -122,7 +133,7 @@ public final class FabricInstallTask extends Task<GameInstancePatch> {
         // Don't know the purpose of ignoring client libraries.
         for (String side : new String[]{"common", "server"}) {
             for (JsonElement element : librariesObject.getAsJsonArray(side)) {
-                libraries.add(JsonUtils.GSON.fromJson(element, Library.class));
+                libraries.add(LoaderLibraryParser.parse(element));
             }
         }
 

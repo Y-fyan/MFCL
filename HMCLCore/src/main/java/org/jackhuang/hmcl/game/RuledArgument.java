@@ -19,6 +19,8 @@ package org.jackhuang.hmcl.game;
 
 import com.google.gson.*;
 import com.google.gson.annotations.JsonAdapter;
+import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.UnmodifiableView;
 import org.jackhuang.hmcl.util.Immutable;
 
 import java.lang.reflect.Type;
@@ -55,6 +57,35 @@ public record RuledArgument(List<CompatibilityRule> rules, List<String> value) i
                 rules == null ? null : new ArrayList<>(rules),
                 value == null ? null : new ArrayList<>(value)
         );
+    }
+
+    /// Returns a read-only view of the rule list, preserving an absent list.
+    ///
+    /// @return rules or `null`
+    public @Nullable @UnmodifiableView List<@Nullable CompatibilityRule> rulesOrNull() {
+        return rules == null ? null : Collections.unmodifiableList(rules);
+    }
+
+    /// Returns a read-only view of raw values, preserving an absent list.
+    ///
+    /// @return values or `null`
+    public @Nullable @UnmodifiableView List<@Nullable String> valuesOrNull() {
+        return value == null ? null : Collections.unmodifiableList(value);
+    }
+
+    /// Selects the raw argument values that apply to the current environment.
+    ///
+    /// Null values are omitted, matching [#toString(Map, Map)]. Placeholder expansion is left to
+    /// the caller. A mutable result is returned so callers can assemble larger argument groups.
+    ///
+    /// @param features supported launch features
+    /// @return selected raw argument values
+    public List<String> selectRawValues(Map<String, Boolean> features) {
+        List<String> result = new ArrayList<>();
+        if (CompatibilityRule.appliesToCurrentEnvironment(rules, features) && value != null) {
+            for (@Nullable String argument : value) if (argument != null) result.add(argument);
+        }
+        return result;
     }
 
     @Override

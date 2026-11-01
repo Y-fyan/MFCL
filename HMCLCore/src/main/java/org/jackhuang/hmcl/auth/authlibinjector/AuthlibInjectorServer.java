@@ -24,6 +24,7 @@ import javafx.beans.InvalidationListener;
 import javafx.beans.Observable;
 import org.glavo.url.WebURL;
 import org.jackhuang.hmcl.auth.yggdrasil.YggdrasilService;
+import org.jackhuang.hmcl.auth.yggdrasil.NativeAuthlibTransport;
 import org.jackhuang.hmcl.util.io.HttpRequest;
 import org.jackhuang.hmcl.util.io.NetworkUtils;
 import org.jackhuang.hmcl.util.javafx.ObservableHelper;
@@ -53,6 +54,18 @@ public class AuthlibInjectorServer implements Observable {
 
             WebURL webURL = WebURL.parseBrowserInput(url);
             url = webURL.toString();
+
+            @Nullable String metadata;
+            try { metadata = NativeAuthlibTransport.tryLocate(webURL); }
+            catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); throw new java.io.InterruptedIOException("Server discovery was interrupted");
+            }
+            if (metadata != null) {
+                if (!url.endsWith("/")) url += "/";
+                AuthlibInjectorServer server = new AuthlibInjectorServer(url);
+                server.refreshMetadata(metadata);
+                return server;
+            }
 
             HttpURLConnection conn = NetworkUtils.createHttpConnection(webURL);
             conn = NetworkUtils.resolveConnection(conn);
@@ -146,7 +159,12 @@ public class AuthlibInjectorServer implements Observable {
     }
 
     public void refreshMetadata() throws IOException {
-        refreshMetadata(HttpRequest.GET(url).getString());
+        @Nullable String metadata;
+        try { metadata = NativeAuthlibTransport.tryGetMetadata(WebURL.parse(url)); }
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt(); throw new java.io.InterruptedIOException("Server metadata refresh was interrupted");
+        } catch (IllegalArgumentException e) { metadata = null; }
+        refreshMetadata(metadata != null ? metadata : HttpRequest.GET(url).getString());
     }
 
     private void refreshMetadata(String text) throws IOException {
@@ -163,6 +181,17 @@ public class AuthlibInjectorServer implements Observable {
     }
 
     private void setMetadataResponse(String metadataResponse, long metadataTimestamp) throws JsonParseException {
+        @Nullable NativeAuthlibMetadata.Plan nativeMetadata = NativeAuthlibMetadata.tryParse(metadataResponse);
+        if (nativeMetadata != null) {
+            synchronized (this) {
+                this.metadataResponse = metadataResponse;
+                this.metadataTimestamp = metadataTimestamp;
+                this.name = nativeMetadata.name();
+                this.links = nativeMetadata.links();
+                this.nonEmailLogin = nativeMetadata.nonEmailLogin();
+            }
+            return;
+        }
         JsonObject response = GSON.fromJson(metadataResponse, JsonObject.class);
         if (response == null) {
             throw new JsonParseException("Metadata response is empty");

@@ -90,6 +90,31 @@ public record Arguments(@SerializedName("game") @Nullable List<Argument> game, @
                     a.jvm == null && b.jvm == null ? null : Lang.merge(a.jvm, b.jvm));
     }
 
+    /// Selects raw values from known argument types without expanding placeholders.
+    ///
+    /// An unknown implementation or a null string value returns an empty optional so callers can
+    /// preserve the behavior of [#parseArguments(List, Map, Map)] instead.
+    ///
+    /// @param arguments ordered launch arguments
+    /// @param features supported launch features
+    /// @return selected raw strings, or empty when the argument type is unsupported
+    public static Optional<List<String>> selectRawArguments(List<Argument> arguments, Map<String, Boolean> features) {
+        List<String> result = new ArrayList<>();
+        for (@Nullable Argument argument : arguments) {
+            if (argument == null) continue;
+            if (argument instanceof StringArgument stringArgument) {
+                @Nullable String raw = stringArgument.argument();
+                if (raw == null) return Optional.empty();
+                result.add(raw);
+            } else if (argument instanceof RuledArgument ruledArgument) {
+                result.addAll(ruledArgument.selectRawValues(features));
+            } else {
+                return Optional.empty();
+            }
+        }
+        return Optional.of(result);
+    }
+
     public static List<String> parseStringArguments(List<String> arguments, Map<String, String> keys) {
         return arguments.stream().filter(Objects::nonNull).flatMap(str -> new StringArgument(str).toString(keys, Collections.emptyMap()).stream()).collect(Collectors.toList());
     }

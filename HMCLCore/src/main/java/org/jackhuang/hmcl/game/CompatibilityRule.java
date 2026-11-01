@@ -18,6 +18,8 @@
 package org.jackhuang.hmcl.game;
 
 import org.jackhuang.hmcl.util.Immutable;
+import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.UnmodifiableView;
 
 import java.util.*;
 
@@ -44,6 +46,31 @@ public final class CompatibilityRule {
         this.action = action;
         this.os = os;
         this.features = features;
+    }
+
+    /// Returns the rule action, which may be absent in malformed or legacy metadata.
+    ///
+    /// @return action or `null`
+    public @Nullable Action getAction() {
+        return action;
+    }
+
+    /// Checks only the operating-system portion of this rule on the current system.
+    ///
+    /// @return whether the OS restriction is absent or matches
+    public boolean matchesCurrentOS() {
+        return os == null || os.allow();
+    }
+
+    /// Returns the manifest's operating-system restriction.
+    /// @return restriction, or null
+    public @Nullable OSRestriction getOSRestriction() { return os; }
+
+    /// Returns a read-only view of feature requirements when present.
+    ///
+    /// @return feature requirements or `null`
+    public @Nullable @UnmodifiableView Map<String, @Nullable Boolean> getFeatures() {
+        return features == null ? null : Collections.unmodifiableMap(features);
     }
 
     public Optional<Action> getAppliedAction(Map<String, Boolean> supportedFeatures) {

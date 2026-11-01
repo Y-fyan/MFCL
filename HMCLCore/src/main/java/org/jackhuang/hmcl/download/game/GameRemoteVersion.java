@@ -29,6 +29,7 @@ import org.jackhuang.hmcl.util.Immutable;
 import org.jackhuang.hmcl.util.gson.JsonUtils;
 import org.jackhuang.hmcl.util.versioning.GameVersionNumber;
 import org.jetbrains.annotations.NotNullByDefault;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.InputStreamReader;
 import java.io.Reader;
@@ -49,7 +50,8 @@ public final class GameRemoteVersion extends ComponentRemoteVersion {
     public static Task<ComponentRemoteVersionList<GameRemoteVersion>> fetchAsync(DownloadProvider provider) {
         return new GetTask(provider.getGameVersionListCandidates())
                 .thenApplyAsync(json -> {
-                    GameRemoteVersions root = JsonUtils.fromNonNullJson(json, GameRemoteVersions.class);
+                    @Nullable GameRemoteVersions nativeRoot = NativeGameVersions.tryParse(json);
+                    GameRemoteVersions root = nativeRoot != null ? nativeRoot : JsonUtils.fromNonNullJson(json, GameRemoteVersions.class);
 
                     GameRemoteVersions unlistedVersions = null;
 

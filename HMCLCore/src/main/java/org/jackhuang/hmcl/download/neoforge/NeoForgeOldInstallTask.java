@@ -23,10 +23,17 @@ import org.jackhuang.hmcl.download.DownloadCandidates;
 import org.jackhuang.hmcl.download.DownloadProvider;
 import org.jackhuang.hmcl.download.forge.ForgeNewInstallProfile.Processor;
 import org.jackhuang.hmcl.download.forge.ForgeNewInstallProfile;
+import org.jackhuang.hmcl.download.forge.NativeProcessorLiterals;
+import org.jackhuang.hmcl.download.forge.NativeProcessorHashes;
+import org.jackhuang.hmcl.download.forge.NativeProcessorOptions;
+import org.jackhuang.hmcl.download.forge.NativeProcessorCommand;
+import org.jackhuang.hmcl.download.forge.NativeForgeProfiles;
 import org.jackhuang.hmcl.download.game.GameInstanceJsonDownloadTask;
+import org.jackhuang.hmcl.download.game.GameInstallTask;
 import org.jackhuang.hmcl.download.game.GameLibrariesTask;
 import org.jackhuang.hmcl.game.*;
 import org.jackhuang.hmcl.java.JavaRuntime;
+import org.jackhuang.hmcl.nativebridge.NativeProcessorRunner;
 import org.jackhuang.hmcl.task.FileDownloadTask;
 import org.jackhuang.hmcl.task.Task;
 import org.jackhuang.hmcl.util.DigestUtils;
@@ -37,8 +44,9 @@ import org.jackhuang.hmcl.util.io.ChecksumMismatchException;
 import org.jackhuang.hmcl.util.io.CompressingUtils;
 import org.jackhuang.hmcl.util.io.FileUtils;
 import org.jackhuang.hmcl.util.platform.CommandBuilder;
-import org.jackhuang.hmcl.util.platform.SystemUtils;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.Unmodifiable;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -55,32 +63,40 @@ import java.util.jar.JarFile;
 import java.util.zip.ZipException;
 
 import static org.jackhuang.hmcl.util.logging.Logger.LOG;
-import static org.jackhuang.hmcl.util.gson.JsonUtils.fromNonNullJson;
 
 public class NeoForgeOldInstallTask extends Task<GameInstancePatch> {
 
     private class ProcessorTask extends Task<Void> {
 
         private final Processor processor;
-        private final Map<String, String> vars;
+        /// Resolved variables supplied to the processor; missing literal values may be null.
+        private final Map<String, @Nullable String> vars;
 
-        public ProcessorTask(@NotNull Processor processor, @NotNull Map<String, String> vars) {
+        /// Creates a processor task using the resolved installer variables.
+        /// @param processor processor to execute
+        /// @param vars resolved variables
+        public ProcessorTask(@NotNull Processor processor, @NotNull Map<String, @Nullable String> vars) {
             this.processor = processor;
             this.vars = vars;
             setSignificance(TaskSignificance.MODERATE);
         }
 
+        /// Verifies existing outputs, prepares and runs the processor, then checks its outputs.
         @Override
         public void execute() throws Exception {
             Map<String, String> outputs = new HashMap<>();
             boolean miss = false;
 
-            for (Map.Entry<String, String> entry : processor.getOutputs().entrySet()) {
-                String key = entry.getKey();
-                String value = entry.getValue();
-
-                key = parseLiteral(key, vars);
-                value = parseLiteral(value, vars);
+            List<Map.Entry<String, String>> outputEntries = new ArrayList<>(processor.getOutputs().entrySet());
+            List<String> outputLiterals = new ArrayList<>(outputEntries.size() * 2);
+            for (var entry : outputEntries) { outputLiterals.add(entry.getKey()); outputLiterals.add(entry.getValue()); }
+            @Nullable List<@Nullable String> nativeOutputs = outputLiterals.isEmpty() ? null :
+                    NativeProcessorLiterals.tryExpand(outputLiterals, vars, gameRepository.getLayout(), this::isCancelled);
+            var inspectedOutputs = NativeProcessorHashes.inspectLiterals(nativeOutputs, this::isCancelled);
+            for (int i = 0; i < outputEntries.size(); i++) {
+                var entry = outputEntries.get(i);
+                @Nullable String key = nativeOutputs == null ? parseLiteral(entry.getKey(), vars) : nativeOutputs.get(i * 2);
+                @Nullable String value = nativeOutputs == null ? parseLiteral(entry.getValue(), vars) : nativeOutputs.get(i * 2 + 1);
 
                 if (key == null || value == null) {
                     throw new ArtifactMalformedException("Invalid forge installation configuration");
@@ -91,7 +107,8 @@ public class NeoForgeOldInstallTask extends Task<GameInstancePatch> {
                 Path artifact = Paths.get(key);
                 if (Files.exists(artifact)) {
                     String code;
-                    try (InputStream stream = Files.newInputStream(artifact)) {
+                    if (NativeProcessorHashes.isVerified(artifact, value, inspectedOutputs.get(i))) code = value;
+                    else try (InputStream stream = Files.newInputStream(artifact)) {
                         code = (DigestUtils.digestToString("SHA-1", stream));
                     }
 
@@ -114,9 +131,13 @@ public class NeoForgeOldInstallTask extends Task<GameInstancePatch> {
             if (!Files.isRegularFile(jar))
                 throw new FileNotFoundException("Game processor file not found, should be downloaded in preprocess");
 
-            String mainClass;
-            try (JarFile jarFile = new JarFile(jar.toFile())) {
-                mainClass = jarFile.getManifest().getMainAttributes().getValue(Attributes.Name.MAIN_CLASS);
+            @Nullable NativeProcessorCommand.Prepared prepared = NativeProcessorCommand.tryCombined(jar, processor.getClasspath(),
+                    gameRepository.getLayout(), processor.getArgs(), vars, this::isCancelled);
+            @Nullable String mainClass = prepared == null ? NativeProcessorCommand.tryMainClass(jar, this::isCancelled) : prepared.mainClass();
+            if (mainClass == null) {
+                try (JarFile jarFile = new JarFile(jar.toFile())) {
+                    mainClass = jarFile.getManifest().getMainAttributes().getValue(Attributes.Name.MAIN_CLASS);
+                }
             }
 
             if (StringUtils.isBlank(mainClass))
@@ -126,21 +147,29 @@ public class NeoForgeOldInstallTask extends Task<GameInstancePatch> {
             command.add(JavaRuntime.getDefault().getBinary().toString());
             command.add("-cp");
 
-            List<String> classpath = new ArrayList<>(processor.getClasspath().size() + 1);
-            for (Artifact artifact : processor.getClasspath()) {
-                Path file = gameRepository.getLayout().getArtifactFile(artifact);
-                if (!Files.isRegularFile(file))
-                    throw new Exception("Game processor dependency missing");
-                classpath.add(file.toString());
+            @Nullable String nativeClasspath = prepared == null ? NativeProcessorCommand.tryClasspath(jar, processor.getClasspath(),
+                    gameRepository.getLayout(), this::isCancelled) : prepared.classpath();
+            if (nativeClasspath != null) command.add(nativeClasspath);
+            else {
+                List<String> classpath = new ArrayList<>(processor.getClasspath().size() + 1);
+                for (Artifact artifact : processor.getClasspath()) {
+                    Path file = gameRepository.getLayout().getArtifactFile(artifact);
+                    if (!Files.isRegularFile(file))
+                        throw new Exception("Game processor dependency missing");
+                    classpath.add(file.toString());
+                }
+                classpath.add(jar.toString());
+                command.add(String.join(File.pathSeparator, classpath));
             }
-            classpath.add(jar.toString());
-            command.add(String.join(File.pathSeparator, classpath));
 
             command.add(mainClass);
 
             List<String> args = new ArrayList<>(processor.getArgs().size());
-            for (String arg : processor.getArgs()) {
-                String parsed = parseLiteral(arg, vars);
+            @Nullable List<@Nullable String> nativeArgs = prepared != null ? prepared.arguments() : null;
+            if (nativeArgs == null && !processor.getArgs().isEmpty())
+                nativeArgs = NativeProcessorLiterals.tryExpand(processor.getArgs(), vars, gameRepository.getLayout(), this::isCancelled);
+            for (int i = 0; i < processor.getArgs().size(); i++) {
+                @Nullable String parsed = nativeArgs == null ? parseLiteral(processor.getArgs().get(i), vars) : nativeArgs.get(i);
                 if (parsed == null)
                     throw new ArtifactMalformedException("Invalid forge installation configuration");
                 args.add(parsed);
@@ -149,17 +178,21 @@ public class NeoForgeOldInstallTask extends Task<GameInstancePatch> {
             command.addAll(args);
 
             LOG.info("Executing external processor " + processor.getJar().toString() + ", command line: " + new CommandBuilder().addAll(command).toString());
-            int exitCode = SystemUtils.callExternalProcess(command);
+            int exitCode = NativeProcessorRunner.run(command);
             if (exitCode != 0)
                 throw new IOException("Game processor exited abnormally with code " + exitCode);
 
-            for (Map.Entry<String, String> entry : outputs.entrySet()) {
+            List<Map.Entry<String, String>> completedOutputs = new ArrayList<>(outputs.entrySet());
+            var inspectedCompleted = NativeProcessorHashes.inspectEntries(completedOutputs, this::isCancelled);
+            for (int i = 0; i < completedOutputs.size(); i++) {
+                var entry = completedOutputs.get(i);
                 Path artifact = Paths.get(entry.getKey());
                 if (!Files.isRegularFile(artifact))
                     throw new FileNotFoundException("File missing: " + artifact);
 
                 String code;
-                try (InputStream stream = Files.newInputStream(artifact)) {
+                if (NativeProcessorHashes.isVerified(artifact, entry.getValue(), inspectedCompleted.get(i))) code = entry.getValue();
+                else try (InputStream stream = Files.newInputStream(artifact)) {
                     code = DigestUtils.digestToString("SHA-1", stream);
                 }
 
@@ -287,24 +320,30 @@ public class NeoForgeOldInstallTask extends Task<GameInstancePatch> {
 
     @Override
     public void preExecute() throws Exception {
+        @Nullable NativeForgeProfiles.Parsed nativeProfiles = NativeForgeProfiles.tryRead(installer, this::isCancelled);
         try (FileSystem fs = CompressingUtils.createReadOnlyZipFileSystem(installer)) {
-            profile = JsonUtils.fromNonNullJson(Files.readString(fs.getPath("install_profile.json")), ForgeNewInstallProfile.class);
-            processors = profile.getProcessors();
-            neoForgeVersion = JsonUtils.fromNonNullJson(Files.readString(fs.getPath(profile.getJson())), GameInstanceManifest.class);
-
-            for (Library library : profile.getLibraries()) {
-                Path file = fs.getPath("maven").resolve(library.getPath());
-                if (Files.exists(file)) {
-                    Path dest = gameRepository.getLayout().getLibraryFile(manifest.id(), library);
-                    FileUtils.copyFile(file, dest);
-                }
+            if (nativeProfiles != null && org.jackhuang.hmcl.nativebridge.NativeBackend.isFileHashObservationCurrent(installer, nativeProfiles.observation())) {
+                profile = nativeProfiles.profile(); neoForgeVersion = nativeProfiles.version();
+            } else {
+                profile = JsonUtils.fromNonNullJson(Files.readString(fs.getPath("install_profile.json")), ForgeNewInstallProfile.class);
+                neoForgeVersion = JsonUtils.fromNonNullJson(Files.readString(fs.getPath(profile.getJson())), GameInstanceManifest.class);
             }
+            processors = profile.getProcessors();
 
-            if (profile.getPath().isPresent()) {
-                Path mainJar = profile.getPath().get().getPath(fs.getPath("maven"));
-                if (Files.exists(mainJar)) {
-                    Path dest = gameRepository.getLayout().getArtifactFile(profile.getPath().get());
-                    FileUtils.copyFile(mainJar, dest);
+            if (!NativeForgeProfiles.tryCopyEmbedded(installer, fs, profile, manifest.id(), gameRepository.getLayout(), this::isCancelled)) {
+                for (Library library : profile.getLibraries()) {
+                    Path file = fs.getPath("maven").resolve(library.getPath());
+                    if (Files.exists(file)) {
+                        Path dest = gameRepository.getLayout().getLibraryFile(manifest.id(), library);
+                        FileUtils.copyFile(file, dest);
+                    }
+                }
+                if (profile.getPath().isPresent()) {
+                    Path mainJar = profile.getPath().get().getPath(fs.getPath("maven"));
+                    if (Files.exists(mainJar)) {
+                        Path dest = gameRepository.getLayout().getArtifactFile(profile.getPath().get());
+                        FileUtils.copyFile(mainJar, dest);
+                    }
                 }
             }
         } catch (ZipException ex) {
@@ -314,9 +353,13 @@ public class NeoForgeOldInstallTask extends Task<GameInstancePatch> {
         dependents.add(new GameLibrariesTask(dependencyManager, manifest, true, profile.getLibraries()));
     }
 
-    private Map<String, String> parseOptions(List<String> args, Map<String, String> vars) {
-        Map<String, String> options = new LinkedHashMap<>();
-        String optionName = null;
+    /// Parses processor option names and resolved values using the original Java rules.
+    /// @param args processor arguments
+    /// @param vars resolved variables, which may contain null values
+    /// @return insertion-ordered option map
+    private Map<String, @Nullable String> parseOptions(List<String> args, Map<String, @Nullable String> vars) {
+        Map<String, @Nullable String> options = new LinkedHashMap<>();
+        @Nullable String optionName = null;
         for (String arg : args) {
             if (arg.startsWith("--")) {
                 if (optionName != null) {
@@ -338,20 +381,25 @@ public class NeoForgeOldInstallTask extends Task<GameInstancePatch> {
         return options;
     }
 
-    private Task<?> patchDownloadMojangMappingsTask(Processor processor, Map<String, String> vars) {
-        Map<String, String> options = parseOptions(processor.getArgs(), vars);
+    /// Creates a direct mappings task when this processor requests Mojang client mappings.
+    /// @param processor installer processor
+    /// @param vars resolved processor variables
+    /// @param planned native option map, or null to use the Java parser
+    /// @return mappings download task, or null for ordinary processors
+    private @Nullable Task<?> patchDownloadMojangMappingsTask(Processor processor, Map<String, @Nullable String> vars,
+            @Nullable Map<String, @Nullable String> planned) {
+        Map<String, @Nullable String> options = planned == null ? parseOptions(processor.getArgs(), vars) : planned;
         if (!"DOWNLOAD_MOJMAPS".equals(options.get("task")) || !"client".equals(options.get("side")))
             return null;
-        String version = options.get("version");
-        String output = options.get("output");
+        @Nullable String version = options.get("version");
+        @Nullable String output = options.get("output");
         if (version == null || output == null)
             return null;
 
         LOG.info("Patching DOWNLOAD_MOJMAPS task");
         return new GameInstanceJsonDownloadTask(version, dependencyManager)
                 .thenComposeAsync(json -> {
-                    DownloadInfo mappings = fromNonNullJson(json, GameInstanceManifest.class)
-                            .getDownloads().get(DownloadType.CLIENT_MAPPINGS);
+                    DownloadInfo mappings = GameInstallTask.readClientMappings(json, version);
                     if (mappings == null) {
                         throw new Exception("client_mappings download info not found");
                     }
@@ -368,8 +416,14 @@ public class NeoForgeOldInstallTask extends Task<GameInstancePatch> {
                 });
     }
 
-    private Task<?> createProcessorTask(Processor processor, Map<String, String> vars) {
-        Task<?> task = patchDownloadMojangMappingsTask(processor, vars);
+    /// Creates one sequential installer task using a native option plan when available.
+    /// @param processor installer processor
+    /// @param vars resolved processor variables
+    /// @param planned native option map, or null for Java planning
+    /// @return processor or mappings task
+    private Task<?> createProcessorTask(Processor processor, Map<String, @Nullable String> vars,
+            @Nullable Map<String, @Nullable String> planned) {
+        @Nullable Task<?> task = patchDownloadMojangMappingsTask(processor, vars, planned);
         if (task == null) {
             task = new ProcessorTask(processor, vars);
         }
@@ -388,20 +442,42 @@ public class NeoForgeOldInstallTask extends Task<GameInstancePatch> {
         Path isolatedMinecraftJar = tempDir.resolve("minecraft.jar");
         FileUtils.copyFile(minecraftJar, isolatedMinecraftJar);
 
-        Map<String, String> vars = new HashMap<>();
+        Map<String, @Nullable String> vars = new HashMap<>();
 
         try (FileSystem fs = CompressingUtils.createReadOnlyZipFileSystem(installer)) {
-            for (Map.Entry<String, String> entry : profile.getData().entrySet()) {
-                String key = entry.getKey();
+            List<Map.Entry<String, String>> data = new ArrayList<>(profile.getData().entrySet());
+            @Nullable List<@Nullable String> expanded = data.isEmpty() ? null : NativeProcessorLiterals.tryExpand(
+                    data.stream().map(Map.Entry::getValue).toList(), Collections.emptyMap(), gameRepository.getLayout(), this::isCancelled);
+            @Nullable List<String> stagedData = null;
+            if (expanded != null) {
+                List<String> paths = new ArrayList<>(); boolean eligible = true;
+                for (int i = 0; i < data.size(); i++) {
+                    String value = data.get(i).getValue();
+                    boolean structured = StringUtils.isSurrounded(value, "{", "}") || StringUtils.isSurrounded(value, "'", "'") || StringUtils.isSurrounded(value, "[", "]");
+                    if (!structured) {
+                        @Nullable String path = expanded.get(i);
+                        if (path == null) { eligible = false; break; }
+                        paths.add(path);
+                    }
+                }
+                if (eligible && !paths.isEmpty()) stagedData = NativeForgeProfiles.tryExtractData(installer, fs, paths, tempDir, this::isCancelled);
+            }
+            ExceptionalFunction<String, String, IOException> extract = str -> {
+                Path dest = Files.createTempFile(tempDir, null, null);
+                FileUtils.copyFile(fs.getPath(str), dest);
+                return dest.toString();
+            };
+            int stagedIndex = 0;
+            for (int i = 0; i < data.size(); i++) {
+                var entry = data.get(i);
                 String value = entry.getValue();
-
-                vars.put(key, parseLiteral(value,
-                        Collections.emptyMap(),
-                        str -> {
-                            Path dest = Files.createTempFile(tempDir, null, null);
-                            FileUtils.copyFile(fs.getPath(str), dest);
-                            return dest.toString();
-                        }));
+                boolean structured = StringUtils.isSurrounded(value, "{", "}")
+                        || StringUtils.isSurrounded(value, "'", "'") || StringUtils.isSurrounded(value, "[", "]");
+                @Nullable String parsed = expanded == null ? parseLiteral(value, Collections.emptyMap(), extract) : expanded.get(i);
+                if (expanded != null && !structured)
+                    parsed = parsed == null ? parseLiteral(value, Collections.emptyMap(), extract)
+                            : stagedData == null ? extract.apply(parsed) : stagedData.get(stagedIndex++);
+                vars.put(entry.getKey(), parsed);
             }
         } catch (ZipException ex) {
             throw new ArtifactMalformedException("Malformed neoforge installer file", ex);
@@ -416,10 +492,12 @@ public class NeoForgeOldInstallTask extends Task<GameInstancePatch> {
 
         updateProgress(0, processors.size());
 
-        Task<?> processorsTask = Task.runSequentially(
-                processors.stream()
-                        .map(processor -> createProcessorTask(processor, vars))
-                        .toArray(Task<?>[]::new));
+        @Nullable @Unmodifiable List<@Unmodifiable Map<String, @Nullable String>> plans = processors.isEmpty() ? null :
+                NativeProcessorOptions.tryPlan(processors, vars, gameRepository.getLayout(), this::isCancelled);
+        List<Task<?>> tasks = new ArrayList<>(processors.size());
+        for (int i = 0; i < processors.size(); i++)
+            tasks.add(createProcessorTask(processors.get(i), vars, plans == null ? null : plans.get(i)));
+        Task<?> processorsTask = Task.runSequentially(tasks.toArray(Task<?>[]::new));
 
         dependencies.add(
                 processorsTask.thenComposeAsync(

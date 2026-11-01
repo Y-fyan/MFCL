@@ -57,7 +57,13 @@ public final class LiteLoaderInstallTask extends Task<GameInstancePatch> {
     }
 
     @Override
-    public void execute() {
+    public void execute() throws InterruptedException {
+        GameInstancePatch planned = NativeLiteLoaderPatch.tryPlan(remote, this::isCancelled);
+        if (planned != null) {
+            setResult(planned);
+            dependencies.add(new org.jackhuang.hmcl.download.game.GameLibrariesTask(dependencyManager, manifest, true, planned.getLibraries()));
+            return;
+        }
         Library library = new Library(
                 new Artifact("com.mumfrey", "liteloader", remote.getSelfVersion()),
                 "https://dl.liteloader.com/versions/",

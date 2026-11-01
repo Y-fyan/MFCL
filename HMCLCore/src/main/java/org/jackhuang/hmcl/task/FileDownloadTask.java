@@ -124,6 +124,20 @@ public class FileDownloadTask extends FetchTask<Void> {
         return file;
     }
 
+    /// Publishes a staged native download using the same integrity and cache checks as a regular transfer.
+    public void importNativePayload(Path payload, java.util.function.BooleanSupplier cancelled) throws IOException, InterruptedException {
+        if (cancelled.getAsBoolean()) throw new InterruptedException();
+        try (Context context = getContext(null, false, null); var input = Files.newInputStream(payload)) {
+            byte[] buffer = new byte[65536]; int count;
+            while ((count = input.read(buffer)) != -1) {
+                if (cancelled.getAsBoolean()) throw new InterruptedException();
+                context.write(buffer, 0, count);
+            }
+            if (cancelled.getAsBoolean()) throw new InterruptedException();
+            context.withResult(true);
+        }
+    }
+
     /// Returns the primary remote URL of this download.
     ///
     /// The launcher task list shows the source address next to the file name,
@@ -146,6 +160,45 @@ public class FileDownloadTask extends FetchTask<Void> {
     public void addIntegrityCheckHandler(IntegrityCheckHandler handler) {
         integrityCheckHandlers.add(Objects.requireNonNull(handler));
     }
+
+    /// Returns the expected SHA-1 when this file task can use native transfer.
+    ///
+    /// @return expected digest, or `null` for another or absent algorithm
+    @Override
+    protected @Nullable String nativeExpectedSha1() {
+        return integrityCheck != null && "SHA-1".equalsIgnoreCase(integrityCheck.algorithm())
+                ? integrityCheck.checksum() : null;
+    }
+
+    /// Returns an expected SHA-512 for native transfer when applicable.
+    /// @return expected digest, or null for another algorithm
+    @Override
+    protected @Nullable String nativeExpectedSha512() {
+        return integrityCheck != null && "SHA-512".equalsIgnoreCase(integrityCheck.algorithm())
+                ? integrityCheck.checksum() : null;
+    }
+
+    /// Returns a SHA-256 or MD5 digest for native transfer when applicable.
+    /// @return expected algorithm and digest, or null for another algorithm
+    @Override
+    protected @Nullable NativeOtherDigest nativeExpectedOtherDigest() {
+        if (integrityCheck == null) return null;
+        if ("SHA-256".equalsIgnoreCase(integrityCheck.algorithm())) return new NativeOtherDigest("SHA-256", integrityCheck.checksum());
+        if ("MD5".equalsIgnoreCase(integrityCheck.algorithm())) return new NativeOtherDigest("MD5", integrityCheck.checksum());
+        return null;
+    }
+
+    /// The existing file context verifies non-SHA-1 checksums before publishing downloaded data.
+    /// @return whether a nonempty non-SHA-1 checksum will be checked
+    @Override
+    protected boolean nativeHasIndependentIntegrity() {
+        return integrityCheck != null && !"SHA-1".equalsIgnoreCase(integrityCheck.algorithm())
+                && !integrityCheck.checksum().isBlank();
+    }
+
+    /// File downloads can consume native response headers using the existing publication context.
+    /// @return true
+    @Override protected boolean supportsNativeMetadata() { return true; }
 
     @Override
     protected EnumCheckETag shouldCheckETag() {

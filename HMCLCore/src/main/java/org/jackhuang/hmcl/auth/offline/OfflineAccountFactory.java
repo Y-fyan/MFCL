@@ -24,11 +24,17 @@ import org.jackhuang.hmcl.auth.AccountFactory;
 import org.jackhuang.hmcl.auth.AccountID;
 import org.jackhuang.hmcl.auth.CharacterSelector;
 import org.jackhuang.hmcl.auth.authlibinjector.AuthlibInjectorArtifactProvider;
+import org.jackhuang.hmcl.nativebridge.NativeBackend;
+import org.jetbrains.annotations.Nullable;
+
+import java.io.IOException;
+import java.nio.file.Path;
 import org.jackhuang.hmcl.util.gson.JsonUtils;
 
 import java.util.UUID;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.jackhuang.hmcl.util.logging.Logger.LOG;
 
 /**
  *
@@ -57,10 +63,10 @@ public final class OfflineAccountFactory extends AccountFactory<OfflineAccount> 
         Skin skin;
         if (additionalData != null) {
             data = (AdditionalData) additionalData;
-            uuid = data.uuid == null ? getUUIDFromUserName(username) : data.uuid;
+            uuid = data.uuid == null ? configuredOfflineUuid(username) : data.uuid;
             skin = data.skin;
         } else {
-            uuid = getUUIDFromUserName(username);
+            uuid = configuredOfflineUuid(username);
             skin = null;
         }
         return new OfflineAccount(AccountID.generate(), downloader, username, uuid, skin);
@@ -80,6 +86,34 @@ public final class OfflineAccountFactory extends AccountFactory<OfflineAccount> 
         Skin skin = Skin.fromStorage(metadata.get("skin") instanceof JsonObject skinObject ? skinObject : null);
 
         return new OfflineAccount(accountID, downloader, profileName, profileID, skin);
+    }
+
+    /// Computes an offline UUID, checking an explicitly configured native backend when available.
+    ///
+    /// The existing Java calculation remains authoritative if the native result disagrees or the
+    /// process fails. Explicitly supplied profile UUIDs bypass this method.
+    ///
+    /// @param username offline profile name
+    /// @return the verified offline UUID
+    static UUID configuredOfflineUuid(String username) {
+        UUID expected = getUUIDFromUserName(username);
+        @Nullable String executable = System.getProperty("mfcl.native.path");
+        if (executable == null || executable.isBlank()) {
+            return expected;
+        }
+        try {
+            UUID actual = NativeBackend.calculateOfflineUuid(Path.of(executable), username);
+            if (actual.equals(expected)) {
+                return actual;
+            }
+            LOG.warning("Native offline UUID differed from Java; using Java result");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOG.warning("Native offline UUID request interrupted; using Java result");
+        } catch (IOException | RuntimeException e) {
+            LOG.warning("Native offline UUID request failed; using Java result");
+        }
+        return expected;
     }
 
     public static UUID getUUIDFromUserName(String username) {

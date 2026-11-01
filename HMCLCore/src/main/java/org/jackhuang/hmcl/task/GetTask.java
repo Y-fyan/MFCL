@@ -58,6 +58,10 @@ public final class GetTask extends FetchTask<String> {
         return EnumCheckETag.CHECK_E_TAG;
     }
 
+    /// Text downloads can consume native response headers and the existing remote cache policy.
+    /// @return true
+    @Override protected boolean supportsNativeMetadata() { return true; }
+
     @Override
     protected void useCachedResult(Path cachedFile) throws IOException {
         setResult(Files.readString(cachedFile));

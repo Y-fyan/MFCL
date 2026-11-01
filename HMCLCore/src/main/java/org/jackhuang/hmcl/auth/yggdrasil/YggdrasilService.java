@@ -32,6 +32,7 @@ import org.jackhuang.hmcl.util.io.HttpMultipartRequest;
 import org.jackhuang.hmcl.util.io.NetworkUtils;
 import org.jackhuang.hmcl.util.javafx.ObservableOptionalCache;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.Unmodifiable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -149,9 +150,22 @@ public class YggdrasilService {
         requireEmpty(request(provider.getInvalidationURL(), createRequestWithCredentials(accessToken, clientToken)));
     }
 
-    public void uploadSkin(UUID uuid, String accessToken, boolean isSlim, Path file) throws AuthenticationException, UnsupportedOperationException {
+    /// Uploads a selected skin once through Rust when the provider configuration is supported.
+    /// @param uuid selected profile ID
+    /// @param accessToken provider access token, or null for legacy Java behavior
+    /// @param isSlim whether the slim model is selected
+    /// @param file selected skin file
+    /// @throws AuthenticationException if the upload fails
+    /// @throws UnsupportedOperationException if the provider does not support uploads
+    public void uploadSkin(UUID uuid, @Nullable String accessToken, boolean isSlim, Path file) throws AuthenticationException, UnsupportedOperationException {
         try {
-            HttpURLConnection con = NetworkUtils.createHttpConnection(provider.getSkinUploadURL(uuid));
+            WebURL url = provider.getSkinUploadURL(uuid);
+            @Nullable String nativeResponse = NativeYggdrasilTransport.tryUpload(url, accessToken, isSlim, file);
+            if (nativeResponse != null) {
+                requireEmpty(nativeResponse);
+                return;
+            }
+            HttpURLConnection con = NetworkUtils.createHttpConnection(url);
             con.setRequestMethod("PUT");
             con.setRequestProperty("Authorization", "Bearer " + accessToken);
             con.setDoOutput(true);
@@ -162,31 +176,37 @@ public class YggdrasilService {
                 }
             }
             requireEmpty(NetworkUtils.readFullyAsString(con));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AuthenticationException(e);
         } catch (IOException e) {
             throw new AuthenticationException(e);
         }
     }
 
-    /**
-     * Get complete game profile.
-     *
-     * Game profile provided from authentication is not complete (no skin data in properties).
-     *
-     * @param uuid the uuid that the character corresponding to.
-     * @return the complete game profile(filled with more properties)
-     */
+    /// Fetches and parses the full profile, including its texture properties.
+    /// @param uuid selected profile ID
+    /// @return the complete profile when the provider returns one
+    /// @throws AuthenticationException if the provider request or response fails
     public Optional<CompleteGameProfile> getCompleteGameProfile(UUID uuid) throws AuthenticationException {
         Objects.requireNonNull(uuid);
-
-        return Optional.ofNullable(fromJson(request(provider.getProfilePropertiesURL(uuid), null), CompleteGameProfile.class));
+        String response = request(provider.getProfilePropertiesURL(uuid), null);
+        @Nullable CompleteGameProfile nativeProfile = NativeYggdrasilProfile.tryParse(response);
+        return Optional.ofNullable(nativeProfile == null ? fromJson(response, CompleteGameProfile.class) : nativeProfile);
     }
 
-    public static Optional<Map<TextureType, Texture>> getTextures(CompleteGameProfile profile) throws ServerResponseMalformedException {
+    /// Decodes the profile's optional skin and cape texture map.
+    /// @param profile complete provider profile
+    /// @return texture map when present
+    /// @throws ServerResponseMalformedException if the encoded response is invalid
+    public static Optional<Map<@Nullable TextureType, @Nullable Texture>> getTextures(CompleteGameProfile profile) throws ServerResponseMalformedException {
         Objects.requireNonNull(profile);
 
-        String encodedTextures = profile.getProperties().get("textures");
+        @Nullable String encodedTextures = profile.getProperties().get("textures");
 
         if (encodedTextures != null) {
+            @Nullable NativeYggdrasilTextures.Result nativeResult = NativeYggdrasilTextures.tryParse(encodedTextures);
+            if (nativeResult != null) return Optional.ofNullable(nativeResult.textures());
             byte[] decodedBinary;
             try {
                 decodedBinary = Base64.getDecoder().decode(encodedTextures);
@@ -200,7 +220,45 @@ public class YggdrasilService {
         }
     }
 
+    /// Builds a session using native response planning when supported.
+    /// @param responseText provider response JSON
+    /// @param clientToken token supplied in the original request
+    /// @return authenticated session
+    /// @throws AuthenticationException if authentication or validation fails
     private static YggdrasilSession handleAuthenticationResponse(String responseText, String clientToken) throws AuthenticationException {
+        @Nullable NativeYggdrasilResponse.Plan plan = NativeYggdrasilResponse.tryPlan(responseText, clientToken);
+        if (plan == null) return handleAuthenticationResponseJava(responseText, clientToken);
+        @Nullable GameProfile selected;
+        @Nullable List<@Nullable GameProfile> available;
+        @Nullable @Unmodifiable Map<String, String> userProperties;
+        try {
+            selected = plan.selectedState().decoded() ? plan.selectedState().value()
+                    : GSON.fromJson(plan.selectedProfile(), GameProfile.class);
+            available = plan.availableState().decoded() ? plan.availableState().value()
+                    : GSON.fromJson(plan.availableProfiles(), org.jackhuang.hmcl.util.gson.JsonUtils.listTypeOf(GameProfile.class));
+            if (plan.userState().decoded()) userProperties = plan.userState().properties();
+            else {
+                @Nullable User user = GSON.fromJson(plan.user(), User.class);
+                userProperties = user == null ? null : user.properties();
+            }
+        } catch (RuntimeException e) {
+            // Preserve the original parser's field order and exception behavior for malformed nested data.
+            return handleAuthenticationResponseJava(responseText, clientToken);
+        }
+        if ("remote_error".equals(plan.outcome()))
+            throw new RemoteAuthenticationException(Objects.requireNonNull(plan.error()), plan.errorMessage(), plan.cause());
+        if ("token_mismatch".equals(plan.outcome()))
+            throw new AuthenticationException("Client token changed from " + clientToken + " to " + plan.clientToken());
+        return new YggdrasilSession(Objects.requireNonNull(plan.clientToken()), plan.accessToken(), selected,
+                available == null ? null : unmodifiableList(available), userProperties);
+    }
+
+    /// Parses an authentication response using the original Java implementation.
+    /// @param responseText provider response JSON
+    /// @param clientToken token supplied in the original request
+    /// @return authenticated session
+    /// @throws AuthenticationException if authentication or validation fails
+    private static YggdrasilSession handleAuthenticationResponseJava(String responseText, String clientToken) throws AuthenticationException {
         AuthenticationResponse response = fromJson(responseText, AuthenticationResponse.class);
         handleErrorMessage(response);
 
@@ -228,13 +286,24 @@ public class YggdrasilService {
         }
     }
 
-    /// Performs a GET when the payload is null, or posts the payload as JSON otherwise.
+    /// Performs a GET, or posts JSON through Rust when the provider's network configuration allows it.
+    /// @param url provider endpoint
+    /// @param payload request payload, or null for GET
+    /// @return response text
+    /// @throws AuthenticationException if the request fails
     private static String request(WebURL url, @Nullable Object payload) throws AuthenticationException {
         try {
-            if (payload == null)
-                return NetworkUtils.doGet(url);
-            else
-                return NetworkUtils.doPost(url, payload instanceof String ? (String) payload : GSON.toJson(payload), "application/json");
+            if (payload == null) {
+                @Nullable String nativeResponse = NativeYggdrasilTransport.tryGet(url);
+                return nativeResponse == null ? NetworkUtils.doGet(url) : nativeResponse;
+            }
+            String body = payload instanceof String ? (String) payload : GSON.toJson(payload);
+            @Nullable String nativeResponse = NativeYggdrasilTransport.tryPost(url, body);
+            if (nativeResponse != null) return nativeResponse;
+            return NetworkUtils.doPost(url, body, "application/json");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ServerDisconnectException(e);
         } catch (IOException e) {
             throw new ServerDisconnectException(e);
         }

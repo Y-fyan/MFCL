@@ -25,7 +25,11 @@ import org.jackhuang.hmcl.util.StringUtils;
 import org.jackhuang.hmcl.util.gson.JsonSerializable;
 import org.jackhuang.hmcl.util.gson.JsonUtils;
 import org.jackhuang.hmcl.util.logging.Logger;
+import org.jackhuang.hmcl.nativebridge.NativeBackend;
+import org.jetbrains.annotations.Nullable;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.UUID;
 
 import static java.util.Objects.requireNonNull;
@@ -54,6 +58,8 @@ public record MicrosoftSession(String tokenType, String accessToken, long notAft
 
     /// Loads a Microsoft session from persisted account metadata and private data.
     public static MicrosoftSession fromStorage(JsonObject metadata, JsonObject privateData) {
+        @Nullable MicrosoftSession nativeSession = tryNativeStorage(metadata, privateData);
+        if (nativeSession != null) return nativeSession;
         String profileIDText = JsonUtils.getString(metadata, "profileID");
         if (profileIDText == null) {
             throw new IllegalArgumentException("profileID is missing");
@@ -71,6 +77,38 @@ public record MicrosoftSession(String tokenType, String accessToken, long notAft
                 : 0L;
         String userId = requireStorageString(privateData, "userid");
         return new MicrosoftSession(tokenType, accessToken, notAfter, refreshToken, new User(userId), new GameProfile(profileID, profileName));
+    }
+
+    /// Uses an isolated native process for canonical stored sessions, retaining legacy parsing otherwise.
+    private static @Nullable MicrosoftSession tryNativeStorage(JsonObject metadata, JsonObject privateData) {
+        @Nullable String executable = System.getProperty("mfcl.native.path");
+        if (executable == null || executable.isBlank()
+                || !Boolean.parseBoolean(System.getProperty("mfcl.native.microsoft.enabled", "true"))) return null;
+        JsonObject selectedMetadata = new JsonObject(), selectedPrivate = new JsonObject();
+        if (metadata.has("profileID")) selectedMetadata.add("profileID", metadata.get("profileID"));
+        for (String key : new String[]{"profileName", "tokenType", "accessToken", "refreshToken", "notAfter", "userid"})
+            if (privateData.has(key)) selectedPrivate.add(key, privateData.get(key));
+        JsonObject params = new JsonObject(); params.add("metadata", selectedMetadata); params.add("private", selectedPrivate);
+        if (!java.nio.charset.StandardCharsets.UTF_8.newEncoder().canEncode(params.toString())) return null;
+        try {
+            JsonObject result = NativeBackend.microsoftStorage(Path.of(executable), params);
+            String id = nativeString(result, "profileID"), name = nativeString(result, "profileName");
+            String tokenType = nativeString(result, "tokenType"), token = nativeString(result, "accessToken");
+            String refresh = nativeString(result, "refreshToken"), user = nativeString(result, "userid");
+            JsonElement expiry = result.get("notAfter");
+            if (expiry == null || !expiry.isJsonPrimitive() || !expiry.getAsJsonPrimitive().isNumber()) return null;
+            return new MicrosoftSession(tokenType, token, expiry.getAsBigDecimal().longValueExact(), refresh,
+                    new User(user), new GameProfile(UUIDs.parse(id), name));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt(); return null;
+        } catch (IOException | RuntimeException e) { return null; }
+    }
+
+    /// Reads a required string from the native response without coercing other JSON values.
+    private static String nativeString(JsonObject object, String key) throws IOException {
+        JsonElement value = object.get(key);
+        if (value == null || !value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString()) throw new IOException("Invalid native session field");
+        return value.getAsString();
     }
 
     /// Writes this session to persisted private account data.

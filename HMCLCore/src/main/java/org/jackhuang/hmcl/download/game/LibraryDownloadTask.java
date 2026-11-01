@@ -22,12 +22,14 @@ import org.jackhuang.hmcl.download.DefaultCacheRepository;
 import org.jackhuang.hmcl.download.DownloadCandidates;
 import org.jackhuang.hmcl.download.DownloadProvider;
 import org.jackhuang.hmcl.game.Library;
+import org.jackhuang.hmcl.nativebridge.NativeBackend;
 import org.jackhuang.hmcl.task.DownloadException;
 import org.jackhuang.hmcl.task.FileDownloadTask.IntegrityCheck;
 import org.jackhuang.hmcl.task.FileDownloadTask;
 import org.jackhuang.hmcl.task.Task;
 import org.jackhuang.hmcl.util.DigestUtils;
 import org.jackhuang.hmcl.util.io.FileUtils;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -141,11 +143,17 @@ public class LibraryDownloadTask extends Task<Void> {
         }
     }
 
-    public static boolean checksumValid(Path libPath, List<String> checksums) {
+    /// Verifies a library against its optional legacy checksums.
+    /// @param libPath library file
+    /// @param checksums accepted checksums, or null when no check is required
+    /// @return whether the existing file passes its checksum rules
+    public static boolean checksumValid(Path libPath, @Nullable List<@Nullable String> checksums) {
         try {
             if (checksums == null || checksums.isEmpty()) {
                 return true;
             }
+            @Nullable Boolean nativeResult = tryNativeChecksum(libPath, checksums);
+            if (nativeResult != null) return nativeResult;
             byte[] fileData = Files.readAllBytes(libPath);
             boolean valid = checksums.contains(DigestUtils.digestToString("SHA-1", fileData));
             if (!valid && FileUtils.getName(libPath).endsWith(".jar")) {
@@ -158,7 +166,33 @@ public class LibraryDownloadTask extends Task<Void> {
         return false;
     }
 
-    private static boolean validateJar(byte[] data, List<String> checksums) throws IOException {
+    /// Uses native verification only when the inspected file identity remains current.
+    /// @param libPath library file
+    /// @param checksums nonempty accepted checksum list
+    /// @return native decision, or null when Java must verify the library
+    private static @Nullable Boolean tryNativeChecksum(Path libPath, List<@Nullable String> checksums) {
+        @Nullable String executable = System.getProperty("mfcl.native.path");
+        if (executable == null || executable.isBlank()
+                || !Boolean.parseBoolean(System.getProperty("mfcl.native.libraries.enabled", "true"))) return null;
+        try {
+            @Nullable NativeBackend.LegacyChecksumResult result = NativeBackend.checkLegacyLibrary(
+                    Path.of(executable), libPath, checksums, FileUtils.getName(libPath).endsWith(".jar"));
+            return result != null && NativeBackend.isLegacyChecksumObservationCurrent(libPath, result) ? result.valid() : null;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null;
+        } catch (IOException | RuntimeException e) {
+            LOG.warning("Native library checksum verification unavailable; using Java implementation");
+            return null;
+        }
+    }
+
+    /// Checks a JAR's embedded `checksums.sha1` list using the legacy Java implementation.
+    /// @param data complete archive bytes
+    /// @param checksums accepted checksum values
+    /// @return whether the embedded checksum list and all referenced entries match
+    /// @throws IOException if the JAR cannot be read
+    private static boolean validateJar(byte[] data, List<@Nullable String> checksums) throws IOException {
         HashMap<String, String> files = new HashMap<>();
         String[] hashes = null;
         JarInputStream jar = new JarInputStream(new ByteArrayInputStream(data));

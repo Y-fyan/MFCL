@@ -393,6 +393,79 @@ public final class DefaultGameInstanceTest {
         assertTrue(hasZipEntry(current.getInstanceJarFile(), "META-INF/MOJANG_C.SF"));
     }
 
+    /// A local Modrinth completion uses Rust planning and schedules only eligible verified files.
+    @Test
+    @org.junit.jupiter.api.parallel.ResourceLock(org.junit.jupiter.api.parallel.Resources.SYSTEM_PROPERTIES)
+    @org.junit.jupiter.api.parallel.ResourceLock("cache-repository")
+    public void testNativeModrinthCompletion(@TempDir Path tempDirectory) throws Exception {
+        @Nullable String binary = System.getenv("MFCL_NATIVE_TEST_EXECUTABLE");
+        org.junit.jupiter.api.Assumptions.assumeTrue(binary != null && !binary.isBlank());
+        @Nullable String oldPath = System.getProperty("mfcl.native.path");
+        @Nullable String oldEnabled = System.getProperty("mfcl.native.modpack.enabled");
+        @Nullable String oldPrism = System.getProperty("prism.order");
+        var oldCache = org.jackhuang.hmcl.util.CacheRepository.getInstance();
+        Path wrapper = tempDirectory.resolve("modrinth-backend");
+        Files.writeString(wrapper, """
+                #!/usr/bin/env python3
+                import json, os, pathlib, subprocess, sys
+                child = subprocess.Popen([os.environ['MFCL_NATIVE_TEST_EXECUTABLE']], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1)
+                try:
+                    for line in sys.stdin:
+                        request = json.loads(line); child.stdin.write(line); child.stdin.flush()
+                        while True:
+                            response = child.stdout.readline()
+                            if not response: sys.exit(1)
+                            frame = json.loads(response)
+                            if request.get('method') == 'plan_modrinth_files' and 'result' in frame:
+                                pathlib.Path(__file__ + '.plan').touch()
+                            sys.stdout.write(response); sys.stdout.flush()
+                            if 'result' in frame or 'error' in frame: break
+                finally:
+                    child.stdin.close(); child.wait(timeout=5)
+                """);
+        assertTrue(wrapper.toFile().setExecutable(true));
+        try {
+            System.setProperty("prism.order", "sw"); org.jackhuang.hmcl.JavaFXLauncher.start();
+            org.junit.jupiter.api.Assumptions.assumeTrue(org.jackhuang.hmcl.JavaFXLauncher.isStarted());
+            org.jackhuang.hmcl.nativebridge.NativeTransferTestSupport.clearIdle();
+            System.setProperty("mfcl.native.path", wrapper.toString()); System.clearProperty("mfcl.native.modpack.enabled");
+            TestRepository repository = new TestRepository(tempDirectory.resolve("game"));
+            GameInstanceID id = new GameInstanceID("fixture");
+            TestGameInstance instance = repository.publish(id, new GameInstanceManifest(id));
+            Files.createDirectories(instance.getInstanceRoot()); Files.createDirectories(instance.getRunDirectory());
+            Path source = tempDirectory.resolve("payload"); Files.writeString(source, "isolated-modrinth-payload");
+            String sha = DigestUtils.digestToString("SHA-512", source);
+            var required = new org.jackhuang.hmcl.modpack.modrinth.ModrinthManifest.File("config/required.txt", Map.of("sha512", sha), null, List.of(source.toUri().toString()), 24);
+            var optional = new org.jackhuang.hmcl.modpack.modrinth.ModrinthManifest.File("config/excluded.txt", Map.of("sha512", sha), Map.of("client", "optional"), List.of(source.toUri().toString()), 24);
+            var server = new org.jackhuang.hmcl.modpack.modrinth.ModrinthManifest.File("config/server.txt", Map.of("sha512", sha), Map.of("client", "unsupported"), List.of(source.toUri().toString()), 24);
+            Path existingPath = instance.getRunDirectory().resolve("config/existing.txt"); Files.createDirectories(existingPath.getParent()); Files.writeString(existingPath, "keep");
+            var existing = new org.jackhuang.hmcl.modpack.modrinth.ModrinthManifest.File("config/existing.txt", Map.of("sha512", "invalid"), null, List.of(source.toUri().toString()), 1);
+            var manifest = new org.jackhuang.hmcl.modpack.modrinth.ModrinthManifest("minecraft", 1, "fixture", "fixture", null,
+                    List.of(required, optional, server, existing), Map.of("minecraft", "1.20.1"));
+            DefaultCacheRepository cache = new DefaultCacheRepository(tempDirectory.resolve("cache"));
+            org.jackhuang.hmcl.util.CacheRepository.setInstance(cache);
+            var manager = new DefaultDependencyManager(repository, new TestDownloadProvider(cache), cache);
+            var task = new ModrinthCompletionTask(manager, instance, manifest, Set.of(optional.key()));
+            assertTrue(task.executor().test(), () -> "Modrinth completion failed: " + task.getException());
+            assertEquals("isolated-modrinth-payload", Files.readString(instance.getRunDirectory().resolve("config/required.txt")));
+            assertEquals("keep", Files.readString(existingPath));
+            assertFalse(Files.exists(instance.getRunDirectory().resolve("config/excluded.txt")));
+            assertFalse(Files.exists(instance.getRunDirectory().resolve("config/server.txt")));
+            assertTrue(Files.exists(Path.of(wrapper + ".plan")), "Rust Modrinth plan was not used");
+            var bad = new org.jackhuang.hmcl.modpack.modrinth.ModrinthManifest.File("config/bad.txt", Map.of("sha512", "invalid"), null, List.of(source.toUri().toString()), 1);
+            var badManifest = new org.jackhuang.hmcl.modpack.modrinth.ModrinthManifest("minecraft", 1, "fixture", "fixture", null,
+                    List.of(bad), Map.of("minecraft", "1.20.1"));
+            assertThrows(IOException.class, () -> new ModrinthCompletionTask(manager, instance, badManifest, null).execute());
+            assertFalse(Files.exists(instance.getRunDirectory().resolve("config/bad.txt")));
+        } finally {
+            org.jackhuang.hmcl.nativebridge.NativeTransferTestSupport.clearIdle();
+            org.jackhuang.hmcl.util.CacheRepository.setInstance(oldCache);
+            if (oldPath == null) System.clearProperty("mfcl.native.path"); else System.setProperty("mfcl.native.path", oldPath);
+            if (oldEnabled == null) System.clearProperty("mfcl.native.modpack.enabled"); else System.setProperty("mfcl.native.modpack.enabled", oldEnabled);
+            if (oldPrism == null) System.clearProperty("prism.order"); else System.setProperty("prism.order", oldPrism);
+        }
+    }
+
     /// Dependency managers and modpack completion tasks reject cross-repository instances.
     @Test
     public void testDependencyManagerValidatesInstanceRepository(@TempDir Path tempDirectory) {

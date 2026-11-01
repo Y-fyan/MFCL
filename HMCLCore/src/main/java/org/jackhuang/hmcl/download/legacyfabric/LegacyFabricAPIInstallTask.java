@@ -59,7 +59,7 @@ public final class LegacyFabricAPIInstallTask extends Task<GameInstancePatch> {
 
     @Override
     public boolean isRelyingOnDependencies() {
-        return false;
+        return true;
     }
 
     @Override

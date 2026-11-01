@@ -59,29 +59,32 @@ final class ExitWaiter implements Runnable {
             for (Thread thread : joins)
                 thread.join();
 
-            List<String> errorLines = process.getLines(Log4jLevel::guessLogLineError);
-            ProcessListener.ExitType exitType;
+            List<String> allLines = process.getLines(null);
+            ProcessListener.ExitType exitType = NativeExitClassifier.tryClassifyAll(exitCode, allLines, OperatingSystem.CURRENT_OS.isLinuxOrBSD());
+            List<String> errorLines = exitType == null ? allLines.stream().filter(Log4jLevel::guessLogLineError).toList() : List.of();
 
             // LaunchWrapper will catch the exception logged and will exit normally.
-            if (exitCode != 0 && StringUtils.containsOne(errorLines,
+            if (exitType == null && exitCode != 0 && StringUtils.containsOne(errorLines,
                     "Could not create the Java Virtual Machine.",
                     "Error occurred during initialization of VM",
                     "A fatal exception has occurred. Program will exit.")) {
-                EventBus.EVENT_BUS.fireEvent(new JVMLaunchFailedEvent(this, process));
                 exitType = ProcessListener.ExitType.JVM_ERROR;
-            } else if (exitCode != 0 || StringUtils.containsOne(errorLines,
+            } else if (exitType == null && (exitCode != 0 || StringUtils.containsOne(errorLines,
                     "Crash report saved to", "Could not save crash report to", "This crash report has been saved to:",
-                    "Unable to launch", "An exception was thrown, the game will display an error screen and halt.")) {
-                EventBus.EVENT_BUS.fireEvent(new ProcessExitedAbnormallyEvent(this, process));
-
+                    "Unable to launch", "An exception was thrown, the game will display an error screen and halt."))) {
                 if (exitCode == 137 && OperatingSystem.CURRENT_OS.isLinuxOrBSD()) {
                     exitType = ProcessListener.ExitType.SIGKILL;
                 } else {
                     exitType = ProcessListener.ExitType.APPLICATION_ERROR;
                 }
-            } else {
+            } else if (exitType == null) {
                 exitType = ProcessListener.ExitType.NORMAL;
             }
+
+            if (exitType == ProcessListener.ExitType.JVM_ERROR)
+                EventBus.EVENT_BUS.fireEvent(new JVMLaunchFailedEvent(this, process));
+            else if (exitType == ProcessListener.ExitType.APPLICATION_ERROR || exitType == ProcessListener.ExitType.SIGKILL)
+                EventBus.EVENT_BUS.fireEvent(new ProcessExitedAbnormallyEvent(this, process));
 
             EventBus.EVENT_BUS.fireEvent(new ProcessStoppedEvent(this, process));
 

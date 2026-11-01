@@ -28,6 +28,7 @@ import org.jackhuang.hmcl.task.Task;
 import org.jackhuang.hmcl.util.gson.JsonUtils;
 import org.jackhuang.hmcl.util.io.CompressingUtils;
 import org.jackhuang.hmcl.util.versioning.GameVersionNumber;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.file.FileSystem;
@@ -136,6 +137,20 @@ public final class ForgeInstallTask extends Task<GameInstancePatch> {
     ///                                  unsupported
     /// @throws VersionMismatchException if the installer targets another Minecraft version
     public static boolean detectForgeInstallerType(GameVersionNumber gameVersion, Path installer) throws IOException, VersionMismatchException {
+        @Nullable NativeForgeProfiles.Parsed nativeProfiles = readNativeProfiles(installer);
+        if (nativeProfiles != null && nativeProfiles.specDeclared()) {
+            ForgeNewInstallProfile profile = nativeProfiles.profile();
+            if (!gameVersion.equals(GameVersionNumber.asGameVersion(profile.getMinecraft())))
+                throw new VersionMismatchException(profile.getMinecraft(), gameVersion.toString());
+            return true;
+        }
+        @Nullable NativeForgeProfiles.LegacyParsed legacy = readNativeLegacy(installer);
+        if (legacy != null) {
+            String minecraft = legacy.profile().install().getMinecraft();
+            if (!gameVersion.equals(GameVersionNumber.asGameVersion(minecraft)))
+                throw new VersionMismatchException(minecraft, gameVersion.toString());
+            return false;
+        }
         try (FileSystem fs = CompressingUtils.createReadOnlyZipFileSystem(installer)) {
             String installProfileText = Files.readString(fs.getPath("install_profile.json"));
             Map<?, ?> installProfile = JsonUtils.fromNonNullJson(installProfileText, Map.class);
@@ -174,6 +189,25 @@ public final class ForgeInstallTask extends Task<GameInstancePatch> {
             GameInstanceManifest manifest,
             String gameVersion,
             Path installer) throws IOException, VersionMismatchException, UnsupportedInstallationException {
+        @Nullable NativeForgeProfiles.Parsed nativeProfiles = readNativeProfiles(installer);
+        if (nativeProfiles != null && nativeProfiles.specDeclared()) {
+            checkCleanroomCompatibility(manifest, gameVersion);
+            ForgeNewInstallProfile profile = nativeProfiles.profile();
+            if (!gameVersion.equals(profile.getMinecraft()))
+                throw new VersionMismatchException(profile.getMinecraft(), gameVersion);
+            return new GameDownloadTask(dependencyManager, manifest)
+                    .thenComposeAsync(minecraftJar -> new ForgeNewInstallTask(dependencyManager, manifest,
+                            minecraftJar, modifyVersion(gameVersion, profile.getVersion()), installer));
+        }
+        @Nullable NativeForgeProfiles.LegacyParsed legacy = readNativeLegacy(installer);
+        if (legacy != null) {
+            checkCleanroomCompatibility(manifest, gameVersion);
+            ForgeInstallProfile profile = legacy.profile();
+            if (!gameVersion.equals(profile.install().getMinecraft()))
+                throw new VersionMismatchException(profile.install().getMinecraft(), gameVersion);
+            return new ForgeOldInstallTask(dependencyManager, manifest,
+                    modifyVersion(gameVersion, profile.install().getPath().getVersion().replaceAll("(?i)forge", "")), installer);
+        }
         try (FileSystem fs = CompressingUtils.createReadOnlyZipFileSystem(installer)) {
             String installProfileText = Files.readString(fs.getPath("install_profile.json"));
             Map<?, ?> installProfile = JsonUtils.fromNonNullJson(installProfileText, Map.class);
@@ -198,6 +232,25 @@ public final class ForgeInstallTask extends Task<GameInstancePatch> {
             } else {
                 throw new IOException();
             }
+        }
+    }
+
+    /// Reads processor-based profiles without changing legacy installer detection.
+    private static @Nullable NativeForgeProfiles.Parsed readNativeProfiles(Path installer) throws IOException {
+        try {
+            return NativeForgeProfiles.tryRead(installer, () -> Thread.currentThread().isInterrupted());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new java.io.InterruptedIOException("Forge installer inspection was interrupted");
+        }
+    }
+
+    private static @Nullable NativeForgeProfiles.LegacyParsed readNativeLegacy(Path installer) throws IOException {
+        try {
+            return NativeForgeProfiles.tryReadLegacy(installer, () -> Thread.currentThread().isInterrupted());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new java.io.InterruptedIOException("Forge installer inspection was interrupted");
         }
     }
 

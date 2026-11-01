@@ -23,6 +23,7 @@ import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import org.jackhuang.hmcl.task.Task;
+import org.jackhuang.hmcl.nativebridge.NativeBackend;
 import org.jackhuang.hmcl.util.Lang;
 import org.jackhuang.hmcl.util.gson.JsonUtils;
 import org.jackhuang.hmcl.util.io.FileUtils;
@@ -32,6 +33,7 @@ import org.jetbrains.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.FileSystems;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -274,7 +276,7 @@ public abstract class DefaultGameRepository implements GameRepository {
 
         Path instancesDir = layout.getBaseDirectory().resolve("versions");
         if (Files.isDirectory(instancesDir)) {
-            try (Stream<Path> stream = Files.list(instancesDir)) {
+            try (Stream<Path> stream = listInstanceDirectories(instancesDir)) {
                 List<CompletableFuture<@Nullable DefaultGameInstance>> futures = stream
                         .filter(Files::isDirectory)
                         .map(dir -> CompletableFuture.supplyAsync(
@@ -302,6 +304,26 @@ public abstract class DefaultGameRepository implements GameRepository {
         // Mark loaded before publishing so snapshot listeners observe a ready repository.
         loaded = true;
         publishSnapshot(newSnapshot);
+    }
+
+    /// Enumerates instance directories through Rust when available, falling back on any failure.
+    /// Manifest parsing, inheritance checks and snapshot publication remain unchanged.
+    /// @param instancesDir existing versions directory
+    /// @return stream of candidate directory paths
+    /// @throws IOException if the Java fallback cannot enumerate the directory
+    private static Stream<Path> listInstanceDirectories(Path instancesDir) throws IOException {
+        @Nullable String executable = System.getProperty("mfcl.native.path");
+        if (executable != null && !executable.isBlank() && instancesDir.getFileSystem() == FileSystems.getDefault()
+                && Boolean.parseBoolean(System.getProperty("mfcl.native.instances.enabled", "true"))) {
+            try {
+                return NativeBackend.listInstanceDirectories(Path.of(executable), instancesDir).stream();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (IOException | RuntimeException e) {
+                LOG.warning("Native instance enumeration failed; using Java directory listing");
+            }
+        }
+        return Files.list(instancesDir);
     }
 
     /// Loads one instance directory without renaming on-disk JSON or jar files.
@@ -362,6 +384,12 @@ public abstract class DefaultGameRepository implements GameRepository {
     }
 
     private static GameInstanceManifest readInstanceManifest(Path json) throws IOException, JsonParseException {
+        if (System.getProperty("mfcl.native.path") != null
+                && Boolean.parseBoolean(System.getProperty("mfcl.native.instances.enabled", "true"))
+                && Files.size(json) <= 768 * 1024) {
+            var projected = org.jackhuang.hmcl.download.game.NativeGameManifest.tryInstanceManifest(Files.readString(json));
+            if (projected != null) return projected;
+        }
         GameInstanceManifest manifest = JsonUtils.fromJsonFile(json, GameInstanceManifest.class);
         if (manifest == null) {
             throw new JsonParseException("Manifest is null");
