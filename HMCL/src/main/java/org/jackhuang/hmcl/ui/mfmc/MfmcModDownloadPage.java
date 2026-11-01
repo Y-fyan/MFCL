@@ -115,6 +115,7 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
     /// Creates the mod download page.
     public MfmcModDownloadPage() {
         getStyleClass().add("mfmc-mod-page");
+        setMinSize(0, 0);
 
         Label title = new Label("模组下载");
         title.getStyleClass().add("mfmc-mod-page-title");
@@ -142,17 +143,21 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
         listCard.getStyleClass().addAll("mfmc-card", "mfmc-mod-list-card");
         HBox.setHgrow(listCard, Priority.ALWAYS);
         listCard.setMaxWidth(Double.MAX_VALUE);
+        listCard.setMinHeight(0);
 
         VBox detailCard = new VBox(detailScroll);
         detailCard.getStyleClass().addAll("mfmc-card", "mfmc-mod-detail-card");
         detailCard.setPrefWidth(370);
         detailCard.setMinWidth(310);
         detailCard.setMaxWidth(420);
+        detailCard.setMinHeight(0);
+        detailScroll.setMinHeight(0);
         VBox.setVgrow(detailScroll, Priority.ALWAYS);
 
         HBox body = new HBox(12, listCard, detailCard);
         body.setAlignment(Pos.TOP_LEFT);
         body.setFillHeight(true);
+        body.setMinHeight(0);
 
         setTop(new VBox(12, header, filters));
         setCenter(body);
@@ -263,6 +268,7 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
     private void configureList() {
         modList.getStyleClass().addAll("mfmc-mod-list", "no-horizontal-scrollbar");
         modList.setFixedCellSize(92);
+        modList.setMinHeight(0);
         modList.setCellFactory(ignored -> new ModCell());
         modList.setPlaceholder(new Label("没有找到模组"));
         modList.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
@@ -272,6 +278,7 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
         });
         progress.setMaxSize(36, 36);
         progress.setVisible(false);
+        listStack.setMinHeight(0);
         listStack.getChildren().setAll(modList, progress);
         VBox.setVgrow(listStack, Priority.ALWAYS);
     }

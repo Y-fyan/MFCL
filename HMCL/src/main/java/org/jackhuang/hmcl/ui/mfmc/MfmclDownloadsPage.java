@@ -90,7 +90,10 @@ public final class MfmclDownloadsPage extends VBox {
         taskList.getChildren().clear();
 
         if (MfmclTaskCenter.getEntries().isEmpty()) {
-            taskList.getChildren().setAll(emptyState);
+            HBox emptyRow = new HBox(emptyState);
+            emptyRow.setAlignment(Pos.CENTER);
+            emptyRow.setMaxWidth(Double.MAX_VALUE);
+            taskList.getChildren().setAll(emptyRow);
             fileSection.setVisible(false);
             fileSection.setManaged(false);
             return;
