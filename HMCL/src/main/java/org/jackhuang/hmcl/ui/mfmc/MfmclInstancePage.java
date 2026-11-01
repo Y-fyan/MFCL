@@ -87,18 +87,18 @@ public final class MfmclInstancePage extends VBox {
         manageTitle.getStyleClass().add("mfmcl-panel-title");
         actions.getChildren().setAll(
                 manageTitle,
-                actionRow("打开游戏目录", "打开该实例的 mods、resourcepacks 与世界目录",
+                actionRow("打开游戏目录", "打开该实例的 mods、resourcepacks 与世界目录", "打开目录",
                         SVG.FOLDER, () -> Instances.openFolder(instance)),
-                actionRow("导出实例", "打包为整合包，便于备份或分享",
+                actionRow("导出实例", "打包为整合包，便于备份或分享", "导出",
                         SVG.PACKAGE2, () -> Instances.exportInstance(instance)),
-                actionRow("重命名实例", "只修改实例名称，不影响已安装的内容",
+                actionRow("重命名实例", "只修改实例名称，不影响已安装的内容", "重命名",
                         SVG.EDIT, () -> Instances.renameInstance(instance).thenRun(onChanged)),
-                actionRow("删除实例", "从磁盘移除该实例及其运行目录",
+                actionRow("删除实例", "从磁盘移除该实例及其运行目录", "删除",
                         SVG.DELETE, () -> {
                             Instances.deleteInstance(instance);
                             onChanged.run();
                         }),
-                actionRow("高级设置", "进入经典实例设置页，调整内存、Java 与启动参数",
+                actionRow("高级设置", "进入经典实例设置页，调整内存、Java 与启动参数", "设置",
                         SVG.SETTINGS, () -> Instances.modifyGameSettings(instance)));
 
         VBox body = new VBox(20, details, actions);
@@ -122,7 +122,8 @@ public final class MfmclInstancePage extends VBox {
     }
 
     /// Creates an action row.
-    private static HBox actionRow(String title, String description, SVG icon, Runnable action) {
+    private static HBox actionRow(String title, String description, String buttonText,
+                                  SVG icon, Runnable action) {
         Label name = new Label(title);
         name.getStyleClass().add("mfmcl-shortcut-title");
         Label text = new Label(description);
@@ -131,7 +132,7 @@ public final class MfmclInstancePage extends VBox {
         HBox.setHgrow(copy, Priority.ALWAYS);
 
         HBox row = new HBox(12, icon.createIcon(18), copy,
-                MfmclUi.secondaryButton("打开", null, action));
+                MfmclUi.secondaryButton(buttonText, null, action));
         row.setAlignment(Pos.CENTER_LEFT);
         row.getStyleClass().add("mfmcl-shortcut-row");
         return row;
