@@ -185,7 +185,14 @@ public final class LauncherSettings extends ObservableSetting implements JsonSch
 
     /// The launcher UI language.
     @SerializedName("language")
-    private final ObjectProperty<SupportedLocale> language = new SimpleObjectProperty<>(SupportedLocale.DEFAULT);
+    private final ObjectProperty<SupportedLocale> language = new SimpleObjectProperty<>(defaultLanguage(System.getenv("HMCL_LANGUAGE")));
+
+    /// Uses Simplified Chinese by default while preserving the existing explicit environment override.
+    static SupportedLocale defaultLanguage(@Nullable String environmentLanguage) {
+        return StringUtils.isBlank(environmentLanguage)
+                ? SupportedLocale.getLocale(Locale.forLanguageTag("zh-Hans"))
+                : SupportedLocale.DEFAULT;
+    }
 
     /// Returns the launcher UI language property.
     public ObjectProperty<SupportedLocale> languageProperty() {
