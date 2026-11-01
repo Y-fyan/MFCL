@@ -40,6 +40,7 @@ import org.jackhuang.hmcl.ui.construct.AdvancedListItem;
 import org.jackhuang.hmcl.ui.construct.ClassTitle;
 import org.jackhuang.hmcl.ui.decorator.DecoratorAnimatedPage;
 import org.jackhuang.hmcl.ui.decorator.DecoratorPage;
+import org.jackhuang.hmcl.ui.mfmc.MfmcUiMode;
 import org.jackhuang.hmcl.util.RegionUtils;
 import org.jackhuang.hmcl.util.javafx.BindingMapping;
 import org.jackhuang.hmcl.util.javafx.MappedObservableList;
@@ -56,7 +57,11 @@ public final class AccountListPage extends DecoratorAnimatedPage implements Deco
     static {
         String property = System.getProperty("hmcl.offline.auth.restricted", "auto");
 
-        if ("false".equals(property)
+        // MFCL always offers offline accounts. HMCL's region gate is aimed at the
+        // official build and would otherwise leave a fresh install on a machine
+        // outside mainland China with no way to create a first, offline account.
+        if (MfmcUiMode.isEnabled()
+                || "false".equals(property)
                 || "auto".equals(property) && RegionUtils.isIsChinaMainlandMachine()
                 || SettingsManager.userSettings().enableOfflineAccountProperty().get())
             RESTRICTED.set(false);
