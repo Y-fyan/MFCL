@@ -20,7 +20,6 @@ import org.jackhuang.hmcl.game.GameInstanceID;
 import org.jackhuang.hmcl.game.GameInstanceManifest;
 import org.jackhuang.hmcl.nativebridge.NativeBackend;
 import org.jackhuang.hmcl.task.FileDownloadTask;
-import org.jackhuang.hmcl.task.Task;
 import org.jackhuang.hmcl.util.DigestUtils;
 import org.jetbrains.annotations.NotNullByDefault;
 import org.jetbrains.annotations.Nullable;
@@ -160,9 +159,13 @@ public final class NativeAssetTaskIntegrationTest {
     /// Returns sorted hashes of the file-download dependencies without running them.
     /// @param task asset task
     /// @return pending asset hashes
-    private static List<String> pendingHashes(GameAssetDownloadTask task) {
-        return task.getDependencies().stream().map(Task::getDependents).map(items -> items.iterator().next())
-                .map(item -> ((FileDownloadTask) item).getName()).sorted().toList();
+    private static @Unmodifiable List<String> pendingHashes(GameAssetDownloadTask task) {
+        // A native batch owns the same files without exposing per-file dependents.
+        // Assert scheduled content, not the obsolete single-file graph shape.
+        return task.getDependencies().stream().flatMap(dependency -> {
+            if (dependency instanceof NativeDownloadBatchTask batch) return batch.plannedHashes().stream();
+            return dependency.getDependents().stream().map(item -> ((FileDownloadTask) item).getName());
+        }).sorted().toList();
     }
 
     /// Constructs an asset from synthetic content.

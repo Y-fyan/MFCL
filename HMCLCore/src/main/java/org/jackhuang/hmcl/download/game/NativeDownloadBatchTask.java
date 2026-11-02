@@ -10,6 +10,7 @@ import org.jackhuang.hmcl.task.FileDownloadTask;
 import org.jackhuang.hmcl.task.FetchTask;
 import org.jackhuang.hmcl.task.Task;
 import org.jackhuang.hmcl.util.io.FileUtils;
+import org.jetbrains.annotations.Unmodifiable;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -40,6 +41,11 @@ final class NativeDownloadBatchTask extends Task<Void> {
     }
 
     @Override public Collection<Task<?>> getDependencies() { return dependencies; }
+
+    /// Returns scheduled content hashes for diagnostics without executing the batch.
+    @Unmodifiable List<String> plannedHashes() {
+        return entries.stream().map(Entry::sha1).toList();
+    }
 
     @Override public void execute() throws InterruptedException {
         FetchTask.acquireDownloadPermit();

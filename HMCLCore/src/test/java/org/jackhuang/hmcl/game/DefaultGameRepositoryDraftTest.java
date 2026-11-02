@@ -463,14 +463,16 @@ public final class DefaultGameRepositoryDraftTest {
                                 pathlib.Path(__file__ + '.game-manifest').touch()
                             if request.get('method') == 'plan_asset_install' and 'result' in frame:
                                 pathlib.Path(__file__ + '.asset-install').touch()
-                            if request.get('method') == 'expand_processor_literals' and 'result' in frame:
+                            if request.get('method') in ('expand_processor_literals', 'expand_processor_literals_v2') and 'result' in frame:
                                 with open(__file__ + '.processor', 'a') as marker:
                                     marker.write('success\\n')
                                 if request.get('params', {}).get('variables') == {}:
                                     pathlib.Path(__file__ + '.processor-data').touch()
-                            if request.get('method') == 'plan_processor_options' and 'result' in frame:
+                            if request.get('method') == 'stage_forge_data' and 'result' in frame:
+                                pathlib.Path(__file__ + '.processor-data').touch()
+                            if request.get('method') in ('plan_processor_options', 'plan_processor_options_v2') and 'result' in frame:
                                 pathlib.Path(__file__ + '.processor-options').touch()
-                            if request.get('method') == 'select_library_rules' and 'result' in frame:
+                            if request.get('method') in ('select_library_rules', 'plan_classpath_with_rules') and 'result' in frame:
                                 with open(__file__ + '.library-rules', 'a') as marker:
                                     marker.write('success\\n')
                             if request.get('method') == 'expand_ruled_arguments' and 'result' in frame:
@@ -657,7 +659,7 @@ public final class DefaultGameRepositoryDraftTest {
             @Nullable String neoForgeVersion = System.getenv("MFCL_LIVE_NEOFORGE_VERSION");
             if ((forgeVersion != null && !forgeVersion.isBlank()) || (neoForgeVersion != null && !neoForgeVersion.isBlank())) {
                 assertTrue(Files.exists(Path.of(wrapper + ".processor")), "No loader processor parameters were expanded through Rust");
-                assertTrue(Files.exists(Path.of(wrapper + ".processor-data")), "No loader profile data was expanded through Rust");
+                assertTrue(Files.exists(Path.of(wrapper + ".processor-data")), "No loader profile data was handled through Rust");
                 assertTrue(Files.exists(Path.of(wrapper + ".processor-options")), "No loader processor options were planned through Rust");
                 assertTrue(Files.exists(Path.of(wrapper + ".launched")), "No loader processor was started through Rust");
             }
