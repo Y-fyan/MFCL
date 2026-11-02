@@ -1,5 +1,64 @@
 # MFCL native backend prototype
 
+## 0.0.8 content-store migration
+
+The content-store adapter now delegates Modrinth and CurseForge search-query planning,
+Modrinth version/dependency/file projection and category selection, and shared version
+filtering/sorting to Rust. CurseForge local-file identification uses a two-pass streaming
+MurmurHash2 implementation with 64 KiB working storage and stable Unix file identity
+checks; large Modrinth identification files reuse native SHA-1 inspection. The Java
+caller rechecks filesystem observations before accepting a fingerprint. Fingerprints
+are lookup keys, not cryptographic integrity proofs.
+
+HTTP requests, API-key injection, mirrors, proxies, retry policy, Java typed handles,
+loader classification and final download publication remain owned by Java. A native
+failure falls back on the **same already fetched metadata**, not a repeated request.
+Unsupported/ambiguous JSON and non-ASCII case comparisons retain the original Java
+implementation. Date ordering deliberately preserves the existing null-first, newest-first
+stable comparator (including nanoseconds and source-order ties). Version selection runs
+off the JavaFX thread and stale results are ignored after a project/filter change.
+
+These read-only methods advertise `addon_catalog_v1` and `curse_fingerprint_v1`:
+
+| Method | Parameters | Result |
+| --- | --- | --- |
+| `plan_modrinth_query` | project type, game version, category, page/size, query, sort | unescaped query values |
+| `plan_curse_query` | section/category IDs, game version, page/size, query, sort/order | unescaped query values (no API key) |
+| `project_modrinth_versions` | raw metadata string, single/list shape | canonical version/file/dependency records |
+| `select_modrinth_categories` | raw metadata, project type | matching category records in source order |
+| `select_addon_versions` | opaque version observations, game/loader filter | stable ordered caller indices |
+| `curse_fingerprint` | local file path | unsigned fingerprint and Unix identity, or `unknown` |
+
+Raw catalog metadata is limited to 768 KiB, lists to 10,000 entries, and fingerprint
+sources to 1 GiB. Existing protocol framing and cancellation limits still apply.
+`-Dmfcl.native.catalog.enabled=false` disables these integrations; pooled operations
+honor `mfcl.native.pool.enabled`. Older backends retain Java behavior.
+
+The current packaged build still contains only the build host's native executable.
+The 0.0.8 Linux release does not add untested Windows/macOS native binaries.
+This is an incremental migration, **not a Rust-only launcher or installer**.
+
+Run differential coverage with:
+
+```sh
+cargo test --manifest-path mfcl-native/Cargo.toml
+cargo build --release --manifest-path mfcl-native/Cargo.toml
+MFCL_NATIVE_TEST_EXECUTABLE="$PWD/mfcl-native/target/release/mfcl-native" \
+  ./gradlew :HMCLCore:test :HMCL:test --rerun-tasks --no-daemon
+# Optional: compare current public Modrinth metadata, without accounts or game data.
+MFCL_NATIVE_TEST_EXECUTABLE="$PWD/mfcl-native/target/release/mfcl-native" \
+  MFCL_LIVE_CATALOG=1 ./gradlew :HMCLCore:test --tests '*NativeAddonCatalogTest' --rerun-tasks
+```
+
+The worker health handshake now stores one immutable capability set rather than
+dozens of parallel booleans. A single method-to-capability table controls pure RPC
+routing, making new migrations easier to audit. Existing cancellation, credential
+isolation, download and path-security tests are retained. The asset-task integration
+test now inspects scheduled hashes for both batched and individual downloads instead
+of assuming the obsolete per-file task-graph shape.
+
+## Existing backend responsibilities
+
 Experimental Rust process. Download and ZIP staging operations write files to caller-specified locations. When configured, the launcher uses the native backend for supported checksum-verified downloads, Microsoft device and authorization-code login and refresh, offline UUID verification, supported instance enumeration and inheritance planning, asset-index parsing and hash inspection, standard-layout library classpath planning, batched Unix library hash inspection, launch-argument placeholder expansion, and Unix game process creation; most operations still use HMCLCore. The experimental instance inventory is not suitable for compatibility decisions: its manifest parsing only checks whether JSON is an object, not whether HMCL accepts the manifest, resolves inheritance, or recognizes Classic instances.
 
 Repository refresh uses the separate `list_instance_dirs` operation to enumerate directory candidates when the native process is available. After Java parses the manifests, `find_invalid_inheritance` finds chains ending in a missing parent for both refresh and draft publication, while retaining cycles as the original implementation does. `plan_inheritance` supplies ordered chains for manifest resolution, `merge_manifest` applies inheritance field precedence, and native patch operations apply patches either in stable priority order or their original order, as required by the caller. These operations use opaque tokens referring to existing typed Java values; Java validates chain links, reconstructs the typed manifest and preserves raw JSON behavior. This avoids serializing unknown extension objects or credentials into the merge request. Java still validates instance IDs, recognizes Classic, parses manifest data and publishes the snapshot. Non-UTF-8 names, oversized results, invalid native responses or backend failures fall back to Java. This does not make the experimental `scan_instances` output a compatible repository snapshot. Disable these integrations with `-Dmfcl.native.instances.enabled=false`.
