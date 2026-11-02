@@ -20,14 +20,15 @@ package org.jackhuang.hmcl.ui.mfmc;
 import javafx.animation.PauseTransition;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.geometry.VPos;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.control.ProgressIndicator;
-import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
@@ -37,6 +38,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.text.TextAlignment;
 import javafx.util.Duration;
 import javafx.util.StringConverter;
 import org.jackhuang.hmcl.addon.AddonLoader;
@@ -55,6 +57,7 @@ import org.jackhuang.hmcl.task.Schedulers;
 import org.jackhuang.hmcl.task.Task;
 import org.jackhuang.hmcl.ui.Controllers;
 import org.jackhuang.hmcl.ui.FXUtils;
+import org.jackhuang.hmcl.ui.SVG;
 import org.jackhuang.hmcl.ui.download.DownloadPage;
 import org.jackhuang.hmcl.ui.download.ModDownloadPage;
 import org.jackhuang.hmcl.util.StringUtils;
@@ -87,10 +90,11 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
     private final ListView<RemoteAddon> modList = new ListView<>(mods);
     private ListView<RemoteAddon.Version> versionList = new ListView<>();
     private final VBox detailContent = new VBox(10);
-    private final ScrollPane detailScroll = new ScrollPane();
     private final StackPane listStack = new StackPane();
     private final ProgressIndicator progress = new ProgressIndicator();
     private final Label pageLabel = new Label();
+    /// Result count shown in the list header.
+    private final Label resultLabel = new Label();
     private final Button previousPage = new Button("上一页");
     private final Button nextPage = new Button("下一页");
     private final TextField searchField = new TextField();
@@ -116,50 +120,44 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
     public MfmcModDownloadPage() {
         getStyleClass().add("mfmc-mod-page");
         setMinSize(0, 0);
+        setPadding(new Insets(16, 24, 18, 24));
 
         Label title = new Label("模组下载");
         title.getStyleClass().add("mfmc-mod-page-title");
         Label subtitle = new Label("搜索模组，选择适配当前游戏版本和加载器的文件，下载到实例的 mods 目录。");
         subtitle.getStyleClass().add("mfmc-mod-page-subtitle");
         subtitle.setWrapText(true);
-        VBox header = new VBox(2, title, subtitle);
+        VBox header = new VBox(3, title, subtitle);
 
         configureFilters();
-        FlowPane filters = new FlowPane(10, 8,
-                filterGroup("搜索", searchField),
-                filterGroup("来源", sourceBox),
-                filterGroup("游戏版本", gameVersionField),
-                filterGroup("分类", categoryBox),
-                filterGroup("排序", sortBox),
-                createSearchButton());
-        filters.setAlignment(Pos.CENTER_LEFT);
-        filters.getStyleClass().add("mfmc-mod-filter");
+        VBox toolbar = createToolbar();
 
         configureList();
         configureDetail();
         configurePagination();
 
-        VBox listCard = new VBox(10, listStack, createPaginationBar());
+        VBox listCard = new VBox(0, createListHeader(), listStack, createPaginationBar());
         listCard.getStyleClass().addAll("mfmc-card", "mfmc-mod-list-card");
         HBox.setHgrow(listCard, Priority.ALWAYS);
         listCard.setMaxWidth(Double.MAX_VALUE);
+        listCard.setMinWidth(0);
         listCard.setMinHeight(0);
 
-        VBox detailCard = new VBox(detailScroll);
+        VBox detailCard = new VBox(0, createDetailHeader(), detailContent);
         detailCard.getStyleClass().addAll("mfmc-card", "mfmc-mod-detail-card");
-        detailCard.setPrefWidth(370);
-        detailCard.setMinWidth(310);
-        detailCard.setMaxWidth(420);
+        detailCard.setPrefWidth(380);
+        detailCard.setMinWidth(320);
+        detailCard.setMaxWidth(430);
         detailCard.setMinHeight(0);
-        detailScroll.setMinHeight(0);
-        VBox.setVgrow(detailScroll, Priority.ALWAYS);
+        detailContent.setMinHeight(0);
+        VBox.setVgrow(detailContent, Priority.ALWAYS);
 
-        HBox body = new HBox(12, listCard, detailCard);
+        HBox body = new HBox(14, listCard, detailCard);
         body.setAlignment(Pos.TOP_LEFT);
         body.setFillHeight(true);
         body.setMinHeight(0);
 
-        setTop(new VBox(12, header, filters));
+        setTop(new VBox(14, header, toolbar));
         setCenter(body);
 
         loadInstance(HMCLGameInstance.Optional.of(
@@ -172,15 +170,70 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
         search(0);
     }
 
+    /// Builds the two-row search and filter toolbar.
+    private VBox createToolbar() {
+        Label searchIcon = new Label();
+        searchIcon.setGraphic(SVG.SEARCH.createIcon(14));
+        searchIcon.getStyleClass().add("mfmc-mod-search-icon");
+        searchIcon.setMouseTransparent(true);
+        searchField.setPadding(new Insets(6, 10, 6, 34));
+
+        StackPane searchBox = new StackPane(searchField, searchIcon);
+        searchBox.setAlignment(Pos.CENTER_LEFT);
+        StackPane.setMargin(searchIcon, new Insets(0, 0, 0, 12));
+        searchBox.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(searchBox, Priority.ALWAYS);
+
+        HBox searchRow = new HBox(10, searchBox, createSearchButton());
+        searchRow.setAlignment(Pos.CENTER_LEFT);
+
+        FlowPane filterRow = new FlowPane(16, 8,
+                filterGroup("来源", sourceBox),
+                filterGroup("游戏版本", gameVersionField),
+                filterGroup("分类", categoryBox),
+                filterGroup("排序", sortBox));
+        filterRow.setAlignment(Pos.CENTER_LEFT);
+        filterRow.setRowValignment(VPos.CENTER);
+
+        VBox toolbar = new VBox(10, searchRow, filterRow);
+        toolbar.getStyleClass().addAll("mfmc-card", "mfmc-mod-toolbar");
+        return toolbar;
+    }
+
+    /// Builds the header above the result list.
+    private HBox createListHeader() {
+        Label heading = new Label("模组列表");
+        heading.getStyleClass().add("mfmc-mod-section-title");
+        resultLabel.getStyleClass().add("mfmc-mod-result-label");
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox bar = new HBox(8, heading, spacer, resultLabel);
+        bar.setAlignment(Pos.CENTER_LEFT);
+        bar.getStyleClass().add("mfmc-mod-list-header");
+        return bar;
+    }
+
+    /// Builds the header above the version panel.
+    private HBox createDetailHeader() {
+        Label heading = new Label("模组详情");
+        heading.getStyleClass().add("mfmc-mod-section-title");
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox bar = new HBox(8, heading, spacer);
+        bar.setAlignment(Pos.CENTER_LEFT);
+        bar.getStyleClass().add("mfmc-mod-list-header");
+        return bar;
+    }
+
     private void configureFilters() {
-        searchField.setPromptText("模组名称");
-        searchField.setPrefWidth(220);
+        searchField.setPromptText("搜索模组名称，回车开始搜索");
+        searchField.setPrefWidth(420);
         searchField.textProperty().addListener((observable, oldValue, newValue) -> searchDebounce.playFromStart());
         searchField.setOnAction(event -> search(0));
         searchDebounce.setOnFinished(event -> search(0));
 
         gameVersionField.setPromptText("如 1.20.1");
-        gameVersionField.setPrefWidth(105);
+        gameVersionField.setPrefWidth(100);
         gameVersionField.setOnAction(event -> search(0));
 
         List<RemoteAddon.Source> sources = new ArrayList<>();
@@ -190,7 +243,7 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
         }
         sourceBox.getItems().setAll(sources);
         sourceBox.setValue(sources.get(0));
-        sourceBox.setPrefWidth(125);
+        sourceBox.setPrefWidth(120);
         sourceBox.setConverter(new StringConverter<>() {
             @Override
             public String toString(@Nullable RemoteAddon.Source source) {
@@ -212,12 +265,12 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
 
         categoryBox.getItems().add(ALL);
         categoryBox.setValue(ALL);
-        categoryBox.setPrefWidth(130);
+        categoryBox.setPrefWidth(125);
         categoryBox.valueProperty().addListener((observable, oldValue, newValue) -> search(0));
 
         loaderBox.getItems().setAll(ALL, "Fabric", "Forge", "NeoForge", "Quilt");
         loaderBox.setValue(ALL);
-        loaderBox.setPrefWidth(120);
+        loaderBox.setPrefWidth(130);
         loaderBox.valueProperty().addListener((observable, oldValue, newValue) -> applyVersionFilter());
 
         sortBox.getItems().setAll(
@@ -226,7 +279,7 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
                 RemoteAddonRepository.SortType.LAST_UPDATED
         );
         sortBox.setValue(RemoteAddonRepository.SortType.RELEVANCY);
-        sortBox.setPrefWidth(125);
+        sortBox.setPrefWidth(115);
         sortBox.setConverter(new StringConverter<>() {
             @Override
             public String toString(@Nullable RemoteAddonRepository.SortType type) {
@@ -267,10 +320,10 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
 
     private void configureList() {
         modList.getStyleClass().addAll("mfmc-mod-list", "no-horizontal-scrollbar");
-        modList.setFixedCellSize(92);
+        modList.setFixedCellSize(88);
         modList.setMinHeight(0);
         modList.setCellFactory(ignored -> new ModCell());
-        modList.setPlaceholder(new Label("没有找到模组"));
+        modList.setPlaceholder(emptyLabel("没有找到模组"));
         modList.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
             if (newValue != null) {
                 showDetail(newValue);
@@ -283,14 +336,26 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
         VBox.setVgrow(listStack, Priority.ALWAYS);
     }
 
+    /// Creates a muted label used by the list placeholders.
+    private static Label emptyLabel(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().add("mfmc-mod-empty-label");
+        return label;
+    }
+
+    /// Collapses whitespace and limits a project description to one short paragraph.
+    private static String summarize(String text, int maxLength) {
+        String normalized = text.replaceAll("\\s+", " ").trim();
+        if (normalized.length() <= maxLength) {
+            return normalized;
+        }
+        return normalized.substring(0, maxLength).stripTrailing() + "…";
+    }
+
     private void configureDetail() {
         detailContent.setFillWidth(true);
         detailContent.getStyleClass().add("mfmc-mod-detail-content");
-        detailScroll.setContent(detailContent);
-        detailScroll.setFitToWidth(true);
-        detailScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        detailScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        detailScroll.getStyleClass().add("mfmc-mod-detail-scroll");
+        detailContent.setMinHeight(0);
         showDetailPlaceholder();
     }
 
@@ -304,10 +369,13 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
     }
 
     private HBox createPaginationBar() {
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox bar = new HBox(8, pageLabel, spacer, previousPage, nextPage);
-        bar.setAlignment(Pos.CENTER_LEFT);
+        Region left = new Region();
+        Region right = new Region();
+        HBox.setHgrow(left, Priority.ALWAYS);
+        HBox.setHgrow(right, Priority.ALWAYS);
+        HBox bar = new HBox(8, left, previousPage, pageLabel, nextPage, right);
+        bar.setAlignment(Pos.CENTER);
+        bar.getStyleClass().add("mfmc-mod-pagination");
         return bar;
     }
 
@@ -332,6 +400,7 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
         String query = searchField.getText().trim();
 
         setLoading(true);
+        resultLabel.setText("加载中…");
         Task.supplyAsync(Schedulers.io(), () ->
                         repository.search(downloadProvider, RemoteAddon.Type.MOD, gameVersion, category, page, PAGE_SIZE, query, sort, RemoteAddonRepository.SortOrder.DESC))
                 .whenComplete(Schedulers.javafx(), (result, exception) -> {
@@ -344,13 +413,16 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
                         pageCount = 1;
                         pageOffset = 0;
                         updatePagination();
-                        modList.setPlaceholder(new Label("加载失败，请检查网络后重试"));
+                        resultLabel.setText("加载失败");
+                        modList.setPlaceholder(emptyLabel("加载失败，请检查网络后重试"));
                         Controllers.showToast("模组列表加载失败");
                         return;
                     }
                     mods.setAll(result.results().collect(Collectors.toList()));
                     pageOffset = page;
                     pageCount = Math.max(1, result.totalPages());
+                    resultLabel.setText(mods.size() + " 个结果");
+                    modList.scrollTo(0);
                     updatePagination();
                 })
                 .start();
@@ -377,24 +449,41 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
     }
 
     private void showDetailPlaceholder() {
-        Label label = new Label("选择左侧模组查看可用版本");
-        label.getStyleClass().add("mfmc-mod-detail-placeholder");
-        label.setWrapText(true);
-        detailContent.getChildren().setAll(label);
+        StackPane icon = new StackPane(SVG.PACKAGE2.createIcon(30));
+        icon.getStyleClass().add("mfmc-mod-placeholder-icon");
+        icon.setMinSize(64, 64);
+        icon.setPrefSize(64, 64);
+        icon.setMaxSize(64, 64);
+
+        Label title = new Label("选择一个模组");
+        title.getStyleClass().add("mfmc-mod-placeholder-title");
+        Label hint = new Label("在左侧列表中选择模组，查看可用版本并下载到实例。");
+        hint.getStyleClass().add("mfmc-mod-placeholder-text");
+        hint.setWrapText(true);
+        hint.setTextAlignment(TextAlignment.CENTER);
+        hint.setMaxWidth(240);
+
+        VBox box = new VBox(12, icon, title, hint);
+        box.setAlignment(Pos.CENTER);
+        box.setFillWidth(false);
+        box.getStyleClass().add("mfmc-mod-placeholder");
+        detailContent.setAlignment(Pos.CENTER);
+        detailContent.getChildren().setAll(box);
     }
 
     private void showDetail(RemoteAddon addon) {
         selectedAddon = addon;
         loadedVersions = null;
-        detailContent.getChildren().setAll(new Label("正在加载版本..."));
+        detailContent.setAlignment(Pos.CENTER);
+        detailContent.getChildren().setAll(emptyLabel("正在加载版本…"));
         Task.supplyAsync(Schedulers.io(), () -> addon.data().loadVersions(repository, downloadProvider).toList())
                 .whenComplete(Schedulers.javafx(), (versions, exception) -> {
                     if (selectedAddon != addon) {
                         return;
                     }
                     if (exception != null) {
-                        Label failed = new Label("版本列表加载失败");
-                        failed.getStyleClass().add("mfmc-mod-detail-placeholder");
+                        Label failed = emptyLabel("版本列表加载失败");
+                        detailContent.setAlignment(Pos.CENTER);
                         detailContent.getChildren().setAll(failed);
                         return;
                     }
@@ -406,24 +495,31 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
 
     private void buildDetail(RemoteAddon addon, List<RemoteAddon.Version> versions) {
         ImageView icon = new ImageView(FXUtils.newBuiltinImage("/assets/img/grass.png"));
-        icon.setFitWidth(56);
-        icon.setFitHeight(56);
+        icon.setFitWidth(48);
+        icon.setFitHeight(48);
         icon.setPreserveRatio(true);
         icon.setSmooth(true);
-        loadIcon(addon.iconUrl(), icon, 56);
+        loadIcon(addon.iconUrl(), icon, 48);
+
+        StackPane iconBox = new StackPane(icon);
+        iconBox.getStyleClass().add("mfmc-mod-detail-icon");
+        iconBox.setMinSize(58, 58);
+        iconBox.setPrefSize(58, 58);
+        iconBox.setMaxSize(58, 58);
 
         Label title = new Label(addon.title());
         title.getStyleClass().add("mfmc-mod-detail-title");
         title.setWrapText(true);
         Label author = new Label(StringUtils.isBlank(addon.author()) ? "未知作者" : addon.author());
         author.getStyleClass().add("mfmc-mod-detail-author");
-        Label description = new Label(addon.description());
+        Label description = new Label(summarize(addon.description(), 220));
         description.getStyleClass().add("mfmc-mod-detail-desc");
         description.setWrapText(true);
+        description.setMaxHeight(96);
 
         VBox identity = new VBox(2, title, author, description);
         HBox.setHgrow(identity, Priority.ALWAYS);
-        HBox header = new HBox(12, icon, identity);
+        HBox header = new HBox(12, iconBox, identity);
         header.setAlignment(Pos.TOP_LEFT);
 
         HBox tags = new HBox(6);
@@ -432,20 +528,30 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
             tag.getStyleClass().add("mfmc-mod-tag");
             tags.getChildren().add(tag);
         }
+        tags.setAlignment(Pos.CENTER_LEFT);
 
-        HBox loaderBar = new HBox(8, filterLabel("加载器"), loaderBox);
-        loaderBar.setAlignment(Pos.CENTER_LEFT);
+        Label versionsHeading = new Label("可用版本");
+        versionsHeading.getStyleClass().add("mfmc-mod-section-title");
+        Region versionsSpacer = new Region();
+        HBox.setHgrow(versionsSpacer, Priority.ALWAYS);
+        HBox versionsBar = new HBox(8, versionsHeading, versionsSpacer, filterLabel("加载器"), loaderBox);
+        versionsBar.setAlignment(Pos.CENTER_LEFT);
+        versionsBar.getStyleClass().add("mfmc-mod-detail-section");
 
         versionList = new ListView<>();
         versionList.getStyleClass().addAll("mfmc-mod-version-list", "no-horizontal-scrollbar");
         versionList.setFixedCellSize(78);
+        versionList.setMinHeight(120);
         versionList.setCellFactory(ignored -> new VersionCell());
-        versionList.setPlaceholder(new Label("当前筛选条件下没有可用版本"));
+        versionList.setPlaceholder(emptyLabel("当前筛选条件下没有可用版本"));
 
-        VBox content = new VBox(10, header, tags, loaderBar, versionList);
+        VBox content = new VBox(12, header, tags, versionsBar, versionList);
+        content.setMinHeight(0);
         VBox.setVgrow(versionList, Priority.ALWAYS);
 
+        detailContent.setAlignment(Pos.TOP_LEFT);
         detailContent.getChildren().setAll(content);
+        VBox.setVgrow(content, Priority.ALWAYS);
         applyVersionFilter();
     }
 
@@ -465,6 +571,7 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
                 .sorted(Comparator.comparing(RemoteAddon.Version::datePublished, Comparator.nullsLast(Comparator.naturalOrder())).reversed())
                 .toList();
         versionList.getItems().setAll(filtered);
+        versionList.scrollTo(0);
     }
 
     private void loadIcon(String url, ImageView view, double size) {
@@ -532,24 +639,29 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
     /// One mod project row.
     private final class ModCell extends ListCell<RemoteAddon> {
         private final ImageView icon = new ImageView(FXUtils.newBuiltinImage("/assets/img/grass.png"));
+        private final StackPane iconBox = new StackPane(icon);
         private final Label title = new Label();
         private final Label author = new Label();
         private final Label description = new Label();
         private final HBox tags = new HBox(5);
-        private final Button detail = new Button("查看版本");
+        private final Label chevron = new Label("›");
         private final HBox row;
 
         private ModCell() {
-            icon.setFitWidth(48);
-            icon.setFitHeight(48);
+            icon.setFitWidth(38);
+            icon.setFitHeight(38);
             icon.setPreserveRatio(true);
             icon.setSmooth(true);
+            iconBox.getStyleClass().add("mfmc-mod-icon");
+            iconBox.setMinSize(46, 46);
+            iconBox.setPrefSize(46, 46);
+            iconBox.setMaxSize(46, 46);
 
             title.getStyleClass().add("mfmc-mod-row-title");
             author.getStyleClass().add("mfmc-mod-row-author");
             description.getStyleClass().add("mfmc-mod-row-desc");
-            description.setWrapText(true);
-            description.setMaxHeight(34);
+            description.setWrapText(false);
+            description.setMaxHeight(18);
             tags.setAlignment(Pos.CENTER_LEFT);
 
             VBox text = new VBox(2, title, author, description, tags);
@@ -560,15 +672,9 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
             description.setMaxWidth(Double.MAX_VALUE);
             HBox.setHgrow(text, Priority.ALWAYS);
 
-            detail.getStyleClass().add("mfmc-mod-open-button");
-            detail.setOnAction(event -> {
-                RemoteAddon item = getItem();
-                if (item != null) {
-                    showDetail(item);
-                }
-            });
+            chevron.getStyleClass().add("mfmc-mod-chevron");
 
-            row = new HBox(12, icon, text, detail);
+            row = new HBox(12, iconBox, text, chevron);
             row.setAlignment(Pos.CENTER_LEFT);
             row.setMaxWidth(Double.MAX_VALUE);
             row.getStyleClass().add("mfmc-mod-row");
@@ -597,16 +703,15 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
             }
 
             icon.setImage(FXUtils.newBuiltinImage("/assets/img/grass.png"));
-            loadIcon(item.iconUrl(), icon, 48);
+            loadIcon(item.iconUrl(), icon, 38);
             title.setText(item.title());
             author.setText(StringUtils.isBlank(item.author()) ? "未知作者" : item.author());
-            description.setText(item.description());
+            description.setText(summarize(item.description(), 160));
             tags.getChildren().setAll(item.categories().stream().limit(3).map(category -> {
                 Label label = new Label(category);
                 label.getStyleClass().add("mfmc-mod-tag");
                 return label;
             }).toList());
-            detail.setText("查看版本");
             setGraphic(row);
         }
     }

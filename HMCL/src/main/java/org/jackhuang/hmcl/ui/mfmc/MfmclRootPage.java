@@ -599,6 +599,9 @@ public final class MfmclRootPage extends StackPane implements DecoratorPage {
 
     /// Shows an embedded download page for the requested category.
     public void showDownloadCategory(DownloadPage.Category category) {
+        // Category pages keep the store entry selected, but the dropdown itself
+        // must close so the sidebar returns to its top-level layout.
+        setStoreMenuOpen(false);
         if (category == DownloadPage.Category.MOD) {
             showModDownloads();
             return;
@@ -626,6 +629,7 @@ public final class MfmclRootPage extends StackPane implements DecoratorPage {
 
     /// Shows the MFMC-owned mod browser.
     public void showModDownloads() {
+        setStoreMenuOpen(false);
         showPage(embedded(new MfmcModDownloadPage(), "模组", this::showStore), storeNav);
     }
 

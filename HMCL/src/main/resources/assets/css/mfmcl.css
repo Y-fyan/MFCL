@@ -781,3 +781,341 @@
 .mfmcl-back-button .svg {
     -fx-fill: -mfmcl-text-secondary;
 }
+
+/* Mod browser */
+
+.mfmc-mod-page {
+    -fx-background-color: transparent;
+}
+
+.mfmc-mod-page-title {
+    -fx-font-size: 20px;
+    -fx-font-weight: 700;
+    -fx-text-fill: -mfmcl-text;
+}
+
+.mfmc-mod-page-subtitle {
+    -fx-font-size: 12px;
+    -fx-text-fill: -mfmcl-text-secondary;
+}
+
+.mfmc-mod-search-icon .svg {
+    -fx-fill: -mfmcl-text-disabled;
+}
+
+.mfmc-mod-icon {
+    -fx-background-color: -mfmcl-surface-muted;
+    -fx-background-radius: 10;
+}
+
+.mfmc-mod-detail-icon {
+    -fx-background-color: -mfmcl-surface-muted;
+    -fx-background-radius: 12;
+}
+
+.mfmc-mod-toolbar {
+    -fx-background-color: -mfmcl-surface;
+    -fx-background-radius: 14;
+    -fx-border-color: -mfmcl-border;
+    -fx-border-radius: 14;
+    -fx-padding: 12 14 12 14;
+    -fx-effect: null;
+}
+
+.mfmc-mod-filter-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmcl-text-secondary;
+}
+
+.mfmc-mod-toolbar .text-field,
+.mfmc-mod-page .combo-box {
+    -fx-background-color: -mfmcl-surface-muted;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 1;
+    -fx-border-radius: 9;
+    -fx-background-radius: 9;
+    -fx-padding: 6 10 6 10;
+    -fx-font-size: 12px;
+    -fx-text-fill: -mfmcl-text;
+}
+
+.mfmc-mod-toolbar .text-field:focused {
+    -fx-background-color: -mfmcl-surface;
+    -fx-border-color: -mfmcl-primary;
+}
+
+.mfmc-mod-toolbar .text-field .text {
+    -fx-fill: -mfmcl-text;
+}
+
+.mfmc-mod-page .combo-box .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -mfmcl-text;
+    -fx-padding: 0 2 0 2;
+    -fx-font-size: 12px;
+}
+
+.mfmc-mod-page .combo-box .arrow {
+    -fx-background-color: -mfmcl-text-secondary;
+}
+
+.mfmc-mod-search-button {
+    -fx-background-color: -mfmcl-primary;
+    -fx-background-radius: 9;
+    -fx-padding: 7 22 7 22;
+    -fx-font-size: 12px;
+    -fx-font-weight: 600;
+    -fx-text-fill: #FFFFFF;
+    -fx-cursor: hand;
+}
+
+.mfmc-mod-search-button:hover {
+    -fx-background-color: -mfmcl-primary-hover;
+}
+
+.mfmc-mod-search-button:pressed {
+    -fx-background-color: -mfmcl-primary-pressed;
+}
+
+.mfmcl-shell .mfmc-mod-list-card,
+.mfmcl-shell .mfmc-mod-detail-card {
+    -fx-background-color: -mfmcl-surface;
+    -fx-background-radius: 14;
+    -fx-border-color: -mfmcl-border;
+    -fx-border-radius: 14;
+    -fx-padding: 0;
+    -fx-effect: null;
+}
+
+.mfmc-mod-list-header {
+    -fx-padding: 12 16 11 16;
+    -fx-border-color: transparent transparent -mfmcl-border transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.mfmc-mod-section-title {
+    -fx-font-size: 13px;
+    -fx-font-weight: 600;
+    -fx-text-fill: -mfmcl-text;
+}
+
+.mfmc-mod-result-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmcl-text-secondary;
+}
+
+.mfmc-mod-list {
+    -fx-background-color: transparent;
+    -fx-control-inner-background: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 6 8 4 8;
+}
+
+.mfmc-mod-list .virtual-flow,
+.mfmc-mod-list .clipped-container,
+.mfmc-mod-list .sheet {
+    -fx-background-color: transparent;
+}
+
+.mfmc-mod-list .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 0 0 2 0;
+}
+
+.mfmc-mod-list .list-cell:filled:selected {
+    -fx-background-color: transparent;
+}
+
+.mfmc-mod-list .placeholder .label,
+.mfmc-mod-empty-label {
+    -fx-font-size: 12px;
+    -fx-text-fill: -mfmcl-text-disabled;
+}
+
+.mfmc-mod-row {
+    -fx-background-color: transparent;
+    -fx-background-radius: 10;
+    -fx-border-color: transparent;
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+    -fx-padding: 9 10 9 10;
+    -fx-cursor: hand;
+}
+
+.mfmc-mod-row:hover {
+    -fx-background-color: -mfmcl-surface-muted;
+}
+
+.mfmc-mod-list .list-cell:filled:selected .mfmc-mod-row {
+    -fx-background-color: -mfmcl-primary-tonal;
+    -fx-border-color: -mfmcl-primary;
+}
+
+.mfmc-mod-row-title {
+    -fx-font-size: 13px;
+    -fx-font-weight: 600;
+    -fx-text-fill: -mfmcl-text;
+}
+
+.mfmc-mod-row-author {
+    -fx-font-size: 10px;
+    -fx-text-fill: -mfmcl-text-disabled;
+}
+
+.mfmc-mod-row-desc {
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmcl-text-secondary;
+}
+
+.mfmc-mod-tag {
+    -fx-background-color: -mfmcl-primary-tonal;
+    -fx-background-radius: 999;
+    -fx-padding: 1 7 1 7;
+    -fx-font-size: 9px;
+    -fx-text-fill: -mfmcl-primary-tonal-text;
+}
+
+.mfmc-mod-chevron {
+    -fx-font-size: 18px;
+    -fx-text-fill: -mfmcl-text-disabled;
+    -fx-padding: 0 4 0 0;
+}
+
+.mfmc-mod-list .list-cell:filled:selected .mfmc-mod-chevron {
+    -fx-text-fill: -mfmcl-primary;
+}
+
+.mfmc-mod-detail-content {
+    -fx-padding: 16;
+}
+
+.mfmc-mod-detail-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: 600;
+    -fx-text-fill: -mfmcl-text;
+}
+
+.mfmc-mod-detail-author {
+    -fx-font-size: 10px;
+    -fx-text-fill: -mfmcl-text-disabled;
+}
+
+.mfmc-mod-detail-desc {
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmcl-text-secondary;
+}
+
+.mfmc-mod-placeholder {
+    -fx-padding: 64 8 8 8;
+}
+
+.mfmc-mod-placeholder-icon {
+    -fx-background-color: -mfmcl-primary-tonal;
+    -fx-background-radius: 999;
+    -fx-padding: 16;
+}
+
+.mfmc-mod-placeholder-icon .svg {
+    -fx-fill: -mfmcl-primary;
+}
+
+.mfmc-mod-placeholder-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: 600;
+    -fx-text-fill: -mfmcl-text;
+}
+
+.mfmc-mod-placeholder-text {
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmcl-text-secondary;
+}
+
+.mfmc-mod-detail-section {
+    -fx-padding: 12 0 4 0;
+    -fx-border-color: -mfmcl-border transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+
+.mfmc-mod-version-list {
+    -fx-background-color: transparent;
+    -fx-control-inner-background: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.mfmc-mod-version-list .virtual-flow,
+.mfmc-mod-version-list .clipped-container,
+.mfmc-mod-version-list .sheet {
+    -fx-background-color: transparent;
+}
+
+.mfmc-mod-version-list .list-cell {
+    -fx-background-color: -mfmcl-surface-muted;
+    -fx-background-insets: 0 0 4 0;
+    -fx-background-radius: 10;
+    -fx-border-color: transparent;
+    -fx-border-radius: 10;
+    -fx-padding: 8 10 8 10;
+}
+
+.mfmc-mod-version-list .list-cell:filled:hover {
+    -fx-background-color: -mfmcl-primary-tonal;
+}
+
+.mfmc-mod-version-title {
+    -fx-font-size: 12px;
+    -fx-font-weight: 600;
+    -fx-text-fill: -mfmcl-text;
+}
+
+.mfmc-mod-version-meta {
+    -fx-font-size: 10px;
+    -fx-text-fill: -mfmcl-text-secondary;
+}
+
+.mfmc-mod-download-button {
+    -fx-background-color: -mfmcl-primary;
+    -fx-background-radius: 8;
+    -fx-padding: 5 13 5 13;
+    -fx-font-size: 11px;
+    -fx-font-weight: 600;
+    -fx-text-fill: #FFFFFF;
+    -fx-cursor: hand;
+}
+
+.mfmc-mod-download-button:hover {
+    -fx-background-color: -mfmcl-primary-hover;
+}
+
+.mfmc-mod-pagination {
+    -fx-padding: 10 16 12 16;
+    -fx-border-color: -mfmcl-border transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+
+.mfmc-mod-page-button {
+    -fx-background-color: transparent;
+    -fx-background-radius: 8;
+    -fx-border-color: -mfmcl-border;
+    -fx-border-radius: 8;
+    -fx-padding: 5 14 5 14;
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmcl-text-secondary;
+    -fx-cursor: hand;
+}
+
+.mfmc-mod-page-button:hover {
+    -fx-background-color: -mfmcl-surface-muted;
+    -fx-text-fill: -mfmcl-text;
+}
+
+.mfmc-mod-page-button:disabled {
+    -fx-opacity: 0.4;
+}
+
+.mfmc-mod-page-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: -mfmcl-text-secondary;
+    -fx-padding: 0 4 0 4;
+}
