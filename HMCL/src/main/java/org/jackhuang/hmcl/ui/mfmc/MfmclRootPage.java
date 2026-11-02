@@ -287,7 +287,7 @@ public final class MfmclRootPage extends StackPane implements DecoratorPage {
         StackPane logo = new StackPane(logoImage);
         logo.getStyleClass().add("mfmcl-logo");
 
-        Label brandName = new Label("MFMC Launcher");
+        Label brandName = new Label("MFCL Launcher");
         brandName.getStyleClass().add("mfmcl-brand-name");
 
         HBox brand = new HBox(10, logo, brandName);

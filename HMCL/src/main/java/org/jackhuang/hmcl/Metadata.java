@@ -34,8 +34,8 @@ public final class Metadata {
     private Metadata() {
     }
 
-    public static final String NAME = "MFMC";
-    public static final String FULL_NAME = "MDFZ Minecraft Craft Launcher";
+    public static final String NAME = "MFCL";
+    public static final String FULL_NAME = "MFCL Launcher";
     public static final String VERSION = System.getProperty("hmcl.version.override", JarUtils.getAttribute("hmcl.version", "@develop@"));
 
     /// Explicit Application User Model ID used for Windows taskbar grouping and pinning.
