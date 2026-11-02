@@ -17,10 +17,10 @@
  */
 package org.jackhuang.hmcl.ui.decorator;
 
+import com.jfoenix.controls.JFXDatePicker;
 import com.jfoenix.controls.JFXSnackbar;
 import com.jfoenix.controls.JFXSnackbarLayout;
 import com.jfoenix.skins.JFXDatePickerContent;
-import com.jfoenix.skins.JFXDatePickerSkin;
 import javafx.animation.Interpolator;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
@@ -1176,9 +1176,12 @@ public final class Decorator {
             Node newTarget;
             {
                 //noinspection unchecked
+                // Read the property key without loading the date-picker skin class.
+                // Keyboard routing must keep working even if the optional skin
+                // adapter is unavailable.
                 @Nullable Stack<JFXDatePickerContent> stack =
                         (Stack<JFXDatePickerContent>) getDialogContainer().getProperties()
-                        .get(JFXDatePickerSkin.PROPERTY_DATE_PICKER_CONTENTS);
+                        .get(JFXDatePicker.class.getName() + ".dialog.contents");
                 if (stack != null && !stack.isEmpty()) {
                     newTarget = stack.peek();
                 } else {

@@ -33,6 +33,9 @@ import static org.jackhuang.hmcl.util.logging.Logger.LOG;
  */
 public final class CrashReporter implements Thread.UncaughtExceptionHandler {
 
+    /// Prevents a failing handler from re-entering itself and flooding the log.
+    private static final ThreadLocal<Boolean> HANDLING_EXCEPTION = ThreadLocal.withInitial(() -> Boolean.FALSE);
+
     // Lazy initialization resources
     private static final class Hole {
         @SuppressWarnings("unchecked")
@@ -88,26 +91,54 @@ public final class CrashReporter implements Thread.UncaughtExceptionHandler {
 
     @Override
     public void uncaughtException(Thread t, Throwable e) {
-        LOG.error("Uncaught exception in thread " + t.getName(), e);
-
+        if (HANDLING_EXCEPTION.get()) {
+            return;
+        }
+        HANDLING_EXCEPTION.set(true);
+        boolean shouldShutdown = true;
         try {
-            CrashReport report = new CrashReport(t, e);
-            if (!report.shouldBeReport())
-                return;
+            try {
+                LOG.error("Uncaught exception in thread " + t.getName(), e);
 
-            LOG.error(report.getDisplayText());
-            Platform.runLater(() -> {
-                if (checkThrowable(e)) {
-                    if (showCrashWindow) {
-                        new CrashWindow(report).show();
-                    }
+                CrashReport report = new CrashReport(t, e);
+                if (report.shouldBeReport()) {
+                    LOG.error(report.getDisplayText());
+                    Platform.runLater(() -> {
+                        if (checkThrowable(e) && showCrashWindow) {
+                            new CrashWindow(report).show();
+                        }
+                    });
+                } else {
+                    shouldShutdown = false;
                 }
-            });
-        } catch (Throwable handlingException) {
-            LOG.error("Unable to handle uncaught exception", handlingException);
+            } catch (Throwable handlingException) {
+                try {
+                    LOG.error("Unable to handle uncaught exception", handlingException);
+                } catch (Throwable ignored) {
+                    // The class loader or logger may already be unusable.
+                }
+            } finally {
+                if (shouldShutdown) {
+                    shutdownAfterCrash();
+                }
+            }
+        } finally {
+            HANDLING_EXCEPTION.set(false);
+        }
+    }
+
+    /// Runs shutdown work without allowing a failure to trigger the handler again.
+    private static void shutdownAfterCrash() {
+        try {
+            SettingsManager.shutdown();
+        } catch (Throwable ignored) {
+            // A broken class loader must not turn shutdown into another crash.
         }
 
-        SettingsManager.shutdown();
-        LOG.shutdown();
+        try {
+            LOG.shutdown();
+        } catch (Throwable ignored) {
+            // Logging may already be closed or unloadable.
+        }
     }
 }
