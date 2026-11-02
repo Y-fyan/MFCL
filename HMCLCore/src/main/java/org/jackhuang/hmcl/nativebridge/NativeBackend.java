@@ -2114,7 +2114,7 @@ public final class NativeBackend {
     /// @return response result
     /// @throws IOException if the request fails
     /// @throws InterruptedException if cancelled or interrupted
-    private static JsonObject request(Path executable, String method, JsonObject params, long timeoutSeconds,
+    static JsonObject request(Path executable, String method, JsonObject params, long timeoutSeconds,
                                       BooleanSupplier cancelled) throws IOException, InterruptedException {
         return request(executable, method, params, timeoutSeconds, cancelled, null);
     }

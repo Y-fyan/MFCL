@@ -7,6 +7,7 @@ package org.jackhuang.hmcl.nativebridge;
 
 import org.jetbrains.annotations.NotNullByDefault;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.Unmodifiable;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -64,55 +65,8 @@ final class NativeDownloadPool {
         final Process process;
         /// Last protocol ID used on this process.
         private long lastId;
-        /// Whether this child has advertised the reusable processor-literal protocol.
-        boolean processorStreamVerified;
-        /// Whether this child has advertised the reusable file-hash protocol.
-        boolean fileHashStreamVerified;
-        /// Whether this child has advertised the reusable processor-option protocol.
-        boolean processorOptionsStreamVerified;
-        /// Whether this child supports reusable legacy library verification.
-        boolean legacyChecksumStreamVerified;
-        /// Whether this child supports reusable processor-command preparation.
-        boolean processorCommandStreamVerified;
-        boolean processorCombinedCommandVerified;
-        boolean processorArtifactPathsVerified;
-        boolean processorOptionsPathsVerified;
-        boolean processorCoordinateClasspathVerified;
-        /// Whether this worker supports persistent Modrinth file hashing.
-        boolean modpackHashStreamVerified;
-        /// Whether this worker supports persistent private cache staging.
-        boolean cacheStageStreamVerified;
-        /// Whether this worker supports persistent cache hashing.
-        boolean cacheHashStreamVerified;
-        /// Whether this worker supports additional cache digest algorithms.
-        boolean cacheDigestStreamVerified;
-        /// Whether this worker supports persistent runtime LZMA staging.
-        boolean runtimeLzmaStreamVerified;
-        /// Whether the backend supports persistent runtime metadata requests.
-        boolean runtimeMetadataStreamVerified;
-        boolean instanceManifestStreamVerified;
-        boolean bootstrapIgnoreStreamVerified;
-        boolean classpathPlanStreamVerified;
-        boolean classpathRulesCombinedVerified;
-        /// Whether library rule selection can use a persistent worker.
-        boolean libraryRuleStreamVerified;
-        /// Whether native library selection supports persistent workers.
-        boolean nativeLibraryStreamVerified;
-        /// Whether native archive planning supports persistent workers.
-        boolean nativeArchivePlanStreamVerified;
-        boolean nativeArchiveRulesCombinedVerified;
-        /// Whether Modrinth file selection supports persistent workers.
-        boolean modrinthSelectStreamVerified;
-        /// Whether Modrinth path planning supports persistent workers.
-        boolean modrinthPlanStreamVerified;
-        /// Whether Modrinth update comparison supports persistent workers.
-        boolean modrinthUpdateStreamVerified;
-        /// Whether CurseForge file selection supports persistent workers.
-        boolean curseSelectStreamVerified;
-        /// Whether CurseForge download planning supports persistent workers.
-        boolean cursePlanStreamVerified;
-        /// Whether the stream capability health check has completed.
-        boolean pureCapabilitiesChecked;
+        /// Advertised read-only capabilities after a validated health check; null before probing.
+        @Nullable @Unmodifiable Set<String> pureCapabilities;
         /// Time when this worker was returned to the idle queue.
         private long idleSince;
 

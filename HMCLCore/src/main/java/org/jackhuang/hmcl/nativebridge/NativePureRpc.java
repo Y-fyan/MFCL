@@ -15,6 +15,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
@@ -306,6 +308,12 @@ final class NativePureRpc {
         return tryRequest(executable, "plan_classpath_with_rules", params, cancelled);
     }
 
+    /// Uses an exclusively borrowed worker for the read-only content catalog.
+    static @Nullable JsonObject tryAddonCatalog(Path executable, String method, JsonObject params, BooleanSupplier cancelled)
+            throws IOException, InterruptedException {
+        return tryRequest(executable, method, params, cancelled);
+    }
+
     /// Borrows a worker for supported read-only operations or private staging.
     /// @param executable backend executable
     /// @param method supported pure method
@@ -321,78 +329,57 @@ final class NativePureRpc {
         NativeDownloadPool.Worker worker = NativeDownloadPool.acquire(executable);
         boolean reusable = false;
         try {
-            if (!worker.pureCapabilitiesChecked) {
+            if (worker.pureCapabilities == null) {
                 JsonObject health;
                 try { health = exchange(worker, "health", new JsonObject(), cancelled, TIMEOUT_SECONDS); }
                 catch (IOException e) { return null; }
                 if (!worker.process.isAlive() || !isValidHealth(health)) return null;
-                worker.processorStreamVerified = hasCapability(health, "processor_literal_stream_v1");
-                worker.fileHashStreamVerified = hasCapability(health, "file_hash_stream_v1");
-                worker.processorOptionsStreamVerified = hasCapability(health, "processor_options_stream_v1");
-                worker.legacyChecksumStreamVerified = hasCapability(health, "legacy_checksum_stream_v1");
-                worker.processorCommandStreamVerified = hasCapability(health, "processor_command_stream_v1");
-                worker.processorCombinedCommandVerified = hasCapability(health, "processor_combined_command_v1");
-                worker.processorArtifactPathsVerified = hasCapability(health, "processor_artifact_paths_v1");
-                worker.processorOptionsPathsVerified = hasCapability(health, "processor_options_paths_v1");
-                worker.processorCoordinateClasspathVerified = hasCapability(health, "processor_coordinate_classpath_v1");
-                worker.modpackHashStreamVerified = hasCapability(health, "modpack_hash_stream_v1");
-                worker.cacheStageStreamVerified = hasCapability(health, "cache_stage_stream_v1");
-                worker.cacheHashStreamVerified = hasCapability(health, "cache_hash_stream_v1");
-                worker.cacheDigestStreamVerified = hasCapability(health, "cache_digest_stream_v1");
-                worker.runtimeLzmaStreamVerified = hasCapability(health, "runtime_lzma_stream_v1");
-                worker.runtimeMetadataStreamVerified = hasCapability(health, "runtime_metadata_stream_v1");
-                worker.instanceManifestStreamVerified = hasCapability(health, "instance_manifest_stream_v1");
-                worker.bootstrapIgnoreStreamVerified = hasCapability(health, "bootstrap_ignore_stream_v1");
-                worker.classpathPlanStreamVerified = hasCapability(health, "classpath_plan_stream_v1");
-                worker.classpathRulesCombinedVerified = hasCapability(health, "classpath_rules_combined_v1");
-                worker.libraryRuleStreamVerified = hasCapability(health, "library_rule_stream_v1");
-                worker.nativeLibraryStreamVerified = hasCapability(health, "native_library_stream_v1");
-                worker.nativeArchivePlanStreamVerified = hasCapability(health, "native_archive_plan_stream_v1");
-                worker.nativeArchiveRulesCombinedVerified = hasCapability(health, "native_archive_rules_combined_v1");
-                worker.modrinthSelectStreamVerified = hasCapability(health, "modrinth_select_stream_v1");
-                worker.modrinthPlanStreamVerified = hasCapability(health, "modrinth_plan_stream_v1");
-                worker.modrinthUpdateStreamVerified = hasCapability(health, "modrinth_update_stream_v1");
-                worker.curseSelectStreamVerified = hasCapability(health, "curse_select_stream_v1");
-                worker.cursePlanStreamVerified = hasCapability(health, "curse_plan_stream_v1");
-                worker.pureCapabilitiesChecked = true;
+                Set<String> capabilities = new HashSet<>();
+                for (var capability : health.getAsJsonArray("capabilities")) {
+                    if (!capability.isJsonPrimitive() || !capability.getAsJsonPrimitive().isString()) return null;
+                    capabilities.add(capability.getAsString());
+                }
+                worker.pureCapabilities = Set.copyOf(capabilities);
             }
-            boolean supported = switch (method) {
-                case "expand_processor_literals" -> worker.processorStreamVerified;
-                case "check_files" -> worker.fileHashStreamVerified;
-                case "plan_processor_options" -> worker.processorOptionsStreamVerified;
-                case "check_legacy_library" -> worker.legacyChecksumStreamVerified;
-                case "processor_main_class", "processor_classpath" -> worker.processorCommandStreamVerified;
-                case "processor_command" -> worker.processorCombinedCommandVerified;
-                case "processor_command_v2", "expand_processor_literals_v2" -> worker.processorArtifactPathsVerified;
-                case "plan_processor_options_v2" -> worker.processorOptionsPathsVerified;
-                case "processor_command_v3" -> worker.processorCoordinateClasspathVerified;
-                case "hash_modpack_file" -> worker.modpackHashStreamVerified;
-                case "stage_cache_copy" -> worker.cacheStageStreamVerified;
-                case "hash_cache_sha1" -> worker.cacheHashStreamVerified;
-                case "check_cache_digest" -> worker.cacheDigestStreamVerified;
-                case "stage_runtime_lzma" -> worker.runtimeLzmaStreamVerified;
-                case "select_java_runtime", "parse_java_runtime_manifest" -> worker.runtimeMetadataStreamVerified;
-                case "project_instance_manifest" -> worker.instanceManifestStreamVerified;
-                case "plan_bootstrap_ignore" -> worker.bootstrapIgnoreStreamVerified;
-                case "plan_classpath" -> worker.classpathPlanStreamVerified;
-                case "plan_classpath_with_rules" -> worker.classpathRulesCombinedVerified;
-                case "select_library_rules" -> worker.libraryRuleStreamVerified;
-                case "select_native_libraries" -> worker.nativeLibraryStreamVerified;
-                case "plan_native_archives" -> worker.nativeArchivePlanStreamVerified;
-                case "plan_native_archives_with_rules" -> worker.nativeArchiveRulesCombinedVerified;
-                case "select_modrinth_files" -> worker.modrinthSelectStreamVerified;
-                case "plan_modrinth_files" -> worker.modrinthPlanStreamVerified;
-                case "select_modrinth_removed" -> worker.modrinthUpdateStreamVerified;
-                case "select_curse_files" -> worker.curseSelectStreamVerified;
-                case "plan_curse_downloads" -> worker.cursePlanStreamVerified;
-                default -> false;
+            String required = switch (method) {
+                case "expand_processor_literals" -> "processor_literal_stream_v1";
+                case "check_files" -> "file_hash_stream_v1";
+                case "plan_processor_options" -> "processor_options_stream_v1";
+                case "check_legacy_library" -> "legacy_checksum_stream_v1";
+                case "processor_main_class", "processor_classpath" -> "processor_command_stream_v1";
+                case "processor_command" -> "processor_combined_command_v1";
+                case "processor_command_v2", "expand_processor_literals_v2" -> "processor_artifact_paths_v1";
+                case "plan_processor_options_v2" -> "processor_options_paths_v1";
+                case "processor_command_v3" -> "processor_coordinate_classpath_v1";
+                case "hash_modpack_file" -> "modpack_hash_stream_v1";
+                case "stage_cache_copy" -> "cache_stage_stream_v1";
+                case "hash_cache_sha1" -> "cache_hash_stream_v1";
+                case "check_cache_digest" -> "cache_digest_stream_v1";
+                case "stage_runtime_lzma" -> "runtime_lzma_stream_v1";
+                case "select_java_runtime", "parse_java_runtime_manifest" -> "runtime_metadata_stream_v1";
+                case "project_instance_manifest" -> "instance_manifest_stream_v1";
+                case "plan_bootstrap_ignore" -> "bootstrap_ignore_stream_v1";
+                case "plan_classpath" -> "classpath_plan_stream_v1";
+                case "plan_classpath_with_rules" -> "classpath_rules_combined_v1";
+                case "select_library_rules" -> "library_rule_stream_v1";
+                case "select_native_libraries" -> "native_library_stream_v1";
+                case "plan_native_archives" -> "native_archive_plan_stream_v1";
+                case "plan_native_archives_with_rules" -> "native_archive_rules_combined_v1";
+                case "select_modrinth_files" -> "modrinth_select_stream_v1";
+                case "plan_modrinth_files" -> "modrinth_plan_stream_v1";
+                case "select_modrinth_removed" -> "modrinth_update_stream_v1";
+                case "select_curse_files" -> "curse_select_stream_v1";
+                case "plan_curse_downloads" -> "curse_plan_stream_v1";
+                case "plan_modrinth_query", "plan_curse_query", "project_modrinth_versions", "select_modrinth_categories", "select_addon_versions" -> "addon_catalog_v1";
+                case "curse_fingerprint" -> "curse_fingerprint_v1";
+                default -> "";
             };
-            if (!supported) return null;
+            if (required.isEmpty() || !worker.pureCapabilities.contains(required)) return null;
             JsonObject result = exchange(worker, method, params, cancelled,
                     "check_files".equals(method) || "check_legacy_library".equals(method)
                             || "hash_modpack_file".equals(method) || "stage_cache_copy".equals(method)
                             || "hash_cache_sha1".equals(method) || "check_cache_digest".equals(method)
-                            || "stage_runtime_lzma".equals(method) || "plan_classpath".equals(method)
+                            || "stage_runtime_lzma".equals(method) || "curse_fingerprint".equals(method) || "plan_classpath".equals(method)
                             || "plan_classpath_with_rules".equals(method) ? HASH_TIMEOUT_SECONDS : TIMEOUT_SECONDS);
             reusable = worker.process.isAlive();
             return result;
@@ -409,18 +396,6 @@ final class NativePureRpc {
         try {
             return "mfcl-native".equals(health.get("name").getAsString()) && health.get("protocol").getAsInt() == 1
                     && health.get("capabilities").isJsonArray();
-        } catch (RuntimeException e) { return false; }
-    }
-
-    /// Checks a validated health response for an advertised capability.
-    /// @param health decoded health result
-    /// @param expected capability name
-    /// @return whether the capability is present
-    private static boolean hasCapability(JsonObject health, String expected) {
-        try {
-            for (var capability : health.getAsJsonArray("capabilities"))
-                if (expected.equals(capability.getAsString())) return true;
-            return false;
         } catch (RuntimeException e) { return false; }
     }
 

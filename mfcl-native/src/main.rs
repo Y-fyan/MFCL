@@ -39,6 +39,8 @@ mod oauth_server;
 mod device_flow;
 mod json_unique;
 mod exit_classifier;
+mod addon_catalog;
+mod curse_fingerprint;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -109,6 +111,8 @@ fn handle(req: Request, progress: &mut dyn FnMut(u64, Option<u64>) -> io::Result
                 capabilities.push("classpath_plan_stream_v1");
                 capabilities.push("classpath_rules_combined_v1");
                 capabilities.push("classify_game_exit_v1");
+                capabilities.push("addon_catalog_v1");
+                capabilities.push("curse_fingerprint_v1");
                 capabilities.push("stage_cache_copy");
                 capabilities.push("cache_stage_stream_v1");
                 capabilities.push("cache_hash_stream_v1");
@@ -191,6 +195,12 @@ fn handle(req: Request, progress: &mut dyn FnMut(u64, Option<u64>) -> io::Result
             "plan_classpath" => classpath::plan(&req.params),
             "plan_classpath_with_rules" => classpath::plan_with_rules(&req.params),
             "classify_game_exit" => exit_classifier::classify(&req.params),
+            "plan_modrinth_query" => addon_catalog::modrinth_query(&req.params),
+            "plan_curse_query" => addon_catalog::curse_query(&req.params),
+            "project_modrinth_versions" => addon_catalog::modrinth_versions(&req.params),
+            "select_modrinth_categories" => addon_catalog::modrinth_categories(&req.params),
+            "select_addon_versions" => addon_catalog::select_versions(&req.params),
+            "curse_fingerprint" => curse_fingerprint::inspect(&req.params),
             "expand_ruled_arguments" | "select_library_rules" => arguments::expand_ruled(&req.params),
             "select_native_libraries" => native_libraries::select(&req.params),
             "plan_native_archives" => native_libraries::plan(&req.params),

@@ -42,6 +42,7 @@ import javafx.scene.text.TextAlignment;
 import javafx.util.Duration;
 import javafx.util.StringConverter;
 import org.jackhuang.hmcl.addon.AddonLoader;
+import org.jackhuang.hmcl.addon.NativeAddonCatalog;
 import org.jackhuang.hmcl.addon.RemoteAddon;
 import org.jackhuang.hmcl.addon.RemoteAddonRepository;
 import org.jackhuang.hmcl.addon.repository.CurseForgeRemoteAddonRepository;
@@ -67,7 +68,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -112,6 +112,10 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
     private @Nullable RemoteAddon selectedAddon;
     private @Nullable List<RemoteAddon.Version> loadedVersions;
     private int searchId;
+    /// Invalidates older asynchronous version selections when filters or projects change.
+    private int versionFilterId;
+    /// Distinguishes repeated detail requests, including retries for the same project object.
+    private int detailLoadId;
     private int categoryLoadId;
     private int pageOffset;
     private int pageCount = 1;
@@ -390,8 +394,15 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
         progress.setManaged(loading);
     }
 
+    /// Starts a new search and invalidates detail/filter work from the previous result set.
     private void search(int page) {
         int currentSearchId = ++searchId;
+        versionFilterId++;
+        detailLoadId++;
+        selectedAddon = null;
+        loadedVersions = null;
+        modList.getSelectionModel().clearSelection();
+        showDetailPlaceholder();
         String gameVersion = gameVersionField.getText().trim();
         RemoteAddonRepository.Category category = categories.get(categoryBox.getValue());
         RemoteAddonRepository.SortType sort = sortBox.getValue() != null
@@ -419,6 +430,7 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
                         return;
                     }
                     mods.setAll(result.results().collect(Collectors.toList()));
+                    modList.setPlaceholder(emptyLabel("没有找到模组"));
                     pageOffset = page;
                     pageCount = Math.max(1, result.totalPages());
                     resultLabel.setText(mods.size() + " 个结果");
@@ -471,14 +483,17 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
         detailContent.getChildren().setAll(box);
     }
 
+    /// Fetches versions for one project, invalidating pending selections of the previous project.
     private void showDetail(RemoteAddon addon) {
+        versionFilterId++;
+        int requestId = ++detailLoadId;
         selectedAddon = addon;
         loadedVersions = null;
         detailContent.setAlignment(Pos.CENTER);
         detailContent.getChildren().setAll(emptyLabel("正在加载版本…"));
         Task.supplyAsync(Schedulers.io(), () -> addon.data().loadVersions(repository, downloadProvider).toList())
                 .whenComplete(Schedulers.javafx(), (versions, exception) -> {
-                    if (selectedAddon != addon) {
+                    if (requestId != detailLoadId || selectedAddon != addon) {
                         return;
                     }
                     if (exception != null) {
@@ -555,23 +570,28 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
         applyVersionFilter();
     }
 
+    /// Runs content-store selection off the UI thread and ignores stale selections.
     private void applyVersionFilter() {
         if (loadedVersions == null) {
             return;
         }
         String gameVersion = gameVersionField.getText().trim();
-        String loader = loaderBox.getValue();
-        List<RemoteAddon.Version> filtered = loadedVersions.stream()
-                .filter(version -> StringUtils.isBlank(gameVersion)
-                        || version.gameVersions().isEmpty()
-                        || version.gameVersions().stream().anyMatch(value -> value.equalsIgnoreCase(gameVersion)))
-                .filter(version -> StringUtils.isBlank(loader)
-                        || ALL.equals(loader)
-                        || version.loaders().stream().map(AddonLoader::name).anyMatch(name -> name.equalsIgnoreCase(loader)))
-                .sorted(Comparator.comparing(RemoteAddon.Version::datePublished, Comparator.nullsLast(Comparator.naturalOrder())).reversed())
-                .toList();
-        versionList.getItems().setAll(filtered);
-        versionList.scrollTo(0);
+        @Nullable String loader = loaderBox.getValue();
+        List<RemoteAddon.Version> versions = loadedVersions;
+        int filterId = ++versionFilterId;
+        // Native IPC can start a process. Keep it off the JavaFX application thread.
+        Task.supplyAsync(Schedulers.io(), () -> NativeAddonCatalog.filterVersions(versions, gameVersion, ALL.equals(loader) ? "" : loader))
+                .whenComplete(Schedulers.javafx(), (filtered, exception) -> {
+                    if (filterId != versionFilterId) return;
+                    if (exception != null) {
+                        versionList.getItems().clear();
+                        versionList.setPlaceholder(emptyLabel("版本筛选失败，请重试"));
+                        return;
+                    }
+                    versionList.getItems().setAll(filtered);
+                    versionList.setPlaceholder(emptyLabel("当前筛选条件下没有可用版本"));
+                    versionList.scrollTo(0);
+                }).start();
     }
 
     private void loadIcon(String url, ImageView view, double size) {
@@ -687,8 +707,11 @@ public final class MfmcModDownloadPage extends javafx.scene.layout.BorderPane im
             row.setOnMouseClicked(event -> {
                 RemoteAddon item = getItem();
                 if (item != null) {
-                    getListView().getSelectionModel().select(item);
-                    showDetail(item);
+                    if (getListView().getSelectionModel().getSelectedItem() == item) {
+                        if (loadedVersions == null) showDetail(item);
+                    } else {
+                        getListView().getSelectionModel().select(item);
+                    }
                 }
             });
             setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);

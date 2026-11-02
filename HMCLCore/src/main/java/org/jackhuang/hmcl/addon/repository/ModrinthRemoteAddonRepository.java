@@ -20,12 +20,12 @@ package org.jackhuang.hmcl.addon.repository;
 import com.google.gson.annotations.SerializedName;
 import com.google.gson.reflect.TypeToken;
 import org.jackhuang.hmcl.addon.AddonLoader;
+import org.jackhuang.hmcl.addon.NativeAddonCatalog;
 import org.jackhuang.hmcl.addon.RemoteAddon;
 import org.jackhuang.hmcl.addon.RemoteAddonRepository;
 import org.jackhuang.hmcl.download.DownloadCandidate;
 import org.jackhuang.hmcl.download.DownloadCandidates;
 import org.jackhuang.hmcl.download.DownloadProvider;
-import org.jackhuang.hmcl.util.DigestUtils;
 import org.jackhuang.hmcl.util.Immutable;
 import org.jackhuang.hmcl.util.PriorityComparator;
 import org.jackhuang.hmcl.util.StringUtils;
@@ -155,27 +155,35 @@ public final class ModrinthRemoteAddonRepository implements RemoteAddonRepositor
                 : List.of();
     }
 
+    /// Plans search values in Rust when available, retaining Java HTTP and mirror policy.
     @Override
     public SearchResult search(DownloadProvider downloadProvider, RemoteAddon.Type type, String gameVersion, @Nullable RemoteAddonRepository.Category category, int pageOffset, int pageSize, String searchFilter, SortType sort, SortOrder sortOrder) throws IOException {
-        String projectType = toProjectType(type);
+        @Nullable String projectType = toProjectType(type);
         if (projectType == null) return SearchResult.empty();
         SEMAPHORE.acquireUninterruptibly();
         try {
-            List<List<String>> facets = new ArrayList<>();
-            facets.add(Collections.singletonList("project_type:" + projectType));
-            if (StringUtils.isNotBlank(gameVersion)) {
-                facets.add(Collections.singletonList("versions:" + gameVersion));
+            @Nullable Map<String, String> nativeQuery = NativeAddonCatalog.modrinthQuery(projectType, gameVersion,
+                    category != null ? category.id() : null, pageOffset, pageSize, searchFilter, sort);
+            Map<String, String> query;
+            if (nativeQuery != null) {
+                query = nativeQuery;
+            } else {
+                List<List<String>> facets = new ArrayList<>();
+                facets.add(Collections.singletonList("project_type:" + projectType));
+                if (StringUtils.isNotBlank(gameVersion)) {
+                    facets.add(Collections.singletonList("versions:" + gameVersion));
+                }
+                if (category != null && StringUtils.isNotBlank(category.id())) {
+                    facets.add(Collections.singletonList("categories:" + category.id()));
+                }
+                query = mapOf(
+                        pair("query", searchFilter),
+                        pair("facets", JsonUtils.UGLY_GSON.toJson(facets)),
+                        pair("offset", Integer.toString(pageOffset * pageSize)),
+                        pair("limit", Integer.toString(pageSize)),
+                        pair("index", convertSortType(sort))
+                );
             }
-            if (category != null && StringUtils.isNotBlank(category.id())) {
-                facets.add(Collections.singletonList("categories:" + category.id()));
-            }
-            Map<String, String> query = mapOf(
-                    pair("query", searchFilter),
-                    pair("facets", JsonUtils.UGLY_GSON.toJson(facets)),
-                    pair("offset", Integer.toString(pageOffset * pageSize)),
-                    pair("limit", Integer.toString(pageSize)),
-                    pair("index", convertSortType(sort))
-            );
 
             DownloadCandidates candidates = downloadProvider.getVersionListCandidates(NetworkUtils.withQuery(PREFIX + "/v2/search", query));
             IOException exception = null;
@@ -206,9 +214,10 @@ public final class ModrinthRemoteAddonRepository implements RemoteAddonRepositor
         }
     }
 
+    /// Identifies local files with native stable-file SHA-1 inspection where supported.
     @Override
     public Optional<RemoteAddon.Version> getRemoteVersionByLocalFile(Path file) throws IOException {
-        return getRemoteVersionBySHA1(DigestUtils.digestToString("SHA-1", file));
+        return getRemoteVersionBySHA1(NativeAddonCatalog.localFileSha1(file));
     }
 
     /// Looks up a Modrinth version by file SHA-1 hash.
@@ -219,9 +228,12 @@ public final class ModrinthRemoteAddonRepository implements RemoteAddonRepositor
     public Optional<RemoteAddon.Version> getRemoteVersionBySHA1(String sha1) throws IOException {
         SEMAPHORE.acquireUninterruptibly();
         try {
-            ProjectVersion projectVersion = HttpRequest.GET(PREFIX + "/v2/version_file/" + sha1,
-                            pair("algorithm", "sha1"))
-                    .getJson(ProjectVersion.class);
+            String metadata = HttpRequest.GET(PREFIX + "/v2/version_file/" + sha1,
+                             pair("algorithm", "sha1"))
+                    .getString();
+            @Nullable List<RemoteAddon.Version> nativeVersions = NativeAddonCatalog.modrinthVersions(metadata, true);
+            if (nativeVersions != null) return nativeVersions.stream().findFirst();
+            ProjectVersion projectVersion = JsonUtils.fromNonNullJson(metadata, ProjectVersion.class);
             return projectVersion.toVersion();
         } catch (ResponseCodeException e) {
             if (e.getResponseCode() == 404) {
@@ -292,6 +304,7 @@ public final class ModrinthRemoteAddonRepository implements RemoteAddonRepositor
         throw new UnsupportedOperationException();
     }
 
+    /// Projects upstream versions in Rust or parses the same response with Java on fallback.
     @Override
     public Stream<RemoteAddon.Version> getRemoteVersionsById(DownloadProvider downloadProvider, String id) throws IOException {
         SEMAPHORE.acquireUninterruptibly();
@@ -303,8 +316,10 @@ public final class ModrinthRemoteAddonRepository implements RemoteAddonRepositor
 
             for (DownloadCandidate candidate : candidates.getCandidates()) {
                 try {
-                    List<ProjectVersion> versions = HttpRequest.GET(candidate.displayUrl())
-                            .getJson(listTypeOf(ProjectVersion.class));
+                    String metadata = HttpRequest.GET(candidate.displayUrl()).getString();
+                    @Nullable List<RemoteAddon.Version> nativeVersions = NativeAddonCatalog.modrinthVersions(metadata, false);
+                    if (nativeVersions != null) return nativeVersions.stream();
+                    List<ProjectVersion> versions = JsonUtils.fromNonNullJson(metadata, listTypeOf(ProjectVersion.class));
                     return versions.stream().map(ProjectVersion::toVersion).flatMap(Optional::stream);
                 } catch (IOException e) {
                     IOException wrapper = new IOException("Failed to get remote versions: " + candidate, e);
@@ -360,13 +375,17 @@ public final class ModrinthRemoteAddonRepository implements RemoteAddonRepositor
         return "%s/project/%s/version/%s".formatted(BASE, version.projectId(), version.versionId()); // Modrinth will help us redirect
     }
 
+    /// Filters raw category metadata in Rust without changing category handles or source order.
     @Override
     public Stream<RemoteAddonRepository.Category> getCategories(RemoteAddon.Type type) throws IOException {
-        String projectType = toProjectType(type);
+        @Nullable String projectType = toProjectType(type);
         if (projectType == null) return Stream.empty();
         SEMAPHORE.acquireUninterruptibly();
         try {
-            List<Category> categories = HttpRequest.GET(PREFIX + "/v2/tag/category").getJson(listTypeOf(Category.class));
+            String metadata = HttpRequest.GET(PREFIX + "/v2/tag/category").getString();
+            @Nullable List<RemoteAddonRepository.Category> nativeCategories = NativeAddonCatalog.modrinthCategories(metadata, projectType);
+            if (nativeCategories != null) return nativeCategories.stream();
+            List<Category> categories = JsonUtils.fromNonNullJson(metadata, listTypeOf(Category.class));
             return categories.stream()
                     .filter(category -> category.projectType().equals(projectType))
                     .map(Category::toCategory);

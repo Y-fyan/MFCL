@@ -20,6 +20,7 @@ package org.jackhuang.hmcl.addon.repository;
 import com.google.gson.reflect.TypeToken;
 import org.jackhuang.hmcl.addon.AddonLoader;
 import org.jackhuang.hmcl.addon.RemoteAddon;
+import org.jackhuang.hmcl.addon.NativeAddonCatalog;
 import org.jackhuang.hmcl.addon.RemoteAddonRepository;
 import org.jackhuang.hmcl.download.DownloadCandidate;
 import org.jackhuang.hmcl.download.DownloadCandidates;
@@ -124,17 +125,24 @@ public final class CurseForgeRemoteAddonRepository implements RemoteAddonReposit
                 categoryId = ((Category) category.self()).getId();
             }
 
-            var query = new LinkedHashMap<String, String>();
-            query.put("gameId", "432");
-            query.put("classId", Integer.toString(section));
-            if (categoryId != 0)
-                query.put("categoryId", Integer.toString(categoryId));
-            query.put("gameVersion", gameVersion);
-            query.put("searchFilter", searchFilter);
-            query.put("sortField", Integer.toString(toModsSearchSortField(sortType)));
-            query.put("sortOrder", toSortOrder(sortOrder));
-            query.put("index", Integer.toString(pageOffset * pageSize));
-            query.put("pageSize", Integer.toString(pageSize));
+            @Nullable Map<String, String> nativeQuery = NativeAddonCatalog.curseQuery(section, categoryId, gameVersion,
+                    pageOffset, pageSize, searchFilter, sortType, sortOrder);
+            Map<String, String> query;
+            if (nativeQuery != null) {
+                query = nativeQuery;
+            } else {
+                query = new LinkedHashMap<>();
+                query.put("gameId", "432");
+                query.put("classId", Integer.toString(section));
+                if (categoryId != 0)
+                    query.put("categoryId", Integer.toString(categoryId));
+                query.put("gameVersion", gameVersion);
+                query.put("searchFilter", searchFilter);
+                query.put("sortField", Integer.toString(toModsSearchSortField(sortType)));
+                query.put("sortOrder", toSortOrder(sortOrder));
+                query.put("index", Integer.toString(pageOffset * pageSize));
+                query.put("pageSize", Integer.toString(pageSize));
+            }
 
             @Nullable Response<List<CurseAddon>> response = null;
 
@@ -171,6 +179,12 @@ public final class CurseForgeRemoteAddonRepository implements RemoteAddonReposit
 
     /// Calculates the CurseForge fingerprint without retaining the filtered file in memory.
     static long calculateFingerprint(Path file) throws IOException {
+        @Nullable Long nativeFingerprint = NativeAddonCatalog.curseFingerprint(file);
+        return nativeFingerprint != null ? nativeFingerprint : calculateFingerprintJava(file);
+    }
+
+    /// Java compatibility implementation, also used for native differential tests.
+    static long calculateFingerprintJava(Path file) throws IOException {
         try (SeekableByteChannel channel = Files.newByteChannel(file, StandardOpenOption.READ)) {
             long startPosition = channel.position();
 
