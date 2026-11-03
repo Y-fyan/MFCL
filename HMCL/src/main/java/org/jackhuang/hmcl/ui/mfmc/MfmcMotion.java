@@ -17,6 +17,8 @@
  */
 package org.jackhuang.hmcl.ui.mfmc;
 
+// MFCL animation lifecycle changes: Copyright (C) 2026 MFCL contributors.
+
 import javafx.animation.FadeTransition;
 import javafx.animation.ParallelTransition;
 import javafx.animation.ScaleTransition;
@@ -24,6 +26,7 @@ import javafx.animation.TranslateTransition;
 import javafx.scene.Node;
 import javafx.util.Duration;
 import org.jackhuang.hmcl.ui.animation.Motion;
+import org.jackhuang.hmcl.ui.animation.AnimationUtils;
 import org.jetbrains.annotations.NotNullByDefault;
 
 /// Small reusable motion helpers for the MFMC UI.
@@ -31,11 +34,17 @@ import org.jetbrains.annotations.NotNullByDefault;
 final class MfmcMotion {
     /// Vertical offset, in pixels, that entering pages slide up from.
     private static final double ENTER_OFFSET = 10;
+    /// Owns the current enter transition so rapid navigation never stacks competing animations.
+    private static final Object ENTER = new Object();
 
     /// Fades a node in while sliding it up slightly; used when switching pages.
     ///
     /// @param node the node that has just been added to the scene graph
     static void enter(Node node) {
+        if (node.getProperties().remove(ENTER) instanceof ParallelTransition previous) previous.stop();
+        node.setOpacity(1);
+        node.setTranslateY(0);
+        if (!AnimationUtils.isAnimationEnabled()) return;
         node.setOpacity(0);
         node.setTranslateY(ENTER_OFFSET);
 
@@ -47,7 +56,10 @@ final class MfmcMotion {
         slide.setToY(0);
         slide.setInterpolator(Motion.EMPHASIZED_DECELERATE);
 
-        new ParallelTransition(fade, slide).play();
+        ParallelTransition transition = new ParallelTransition(fade, slide);
+        node.getProperties().put(ENTER, transition);
+        transition.setOnFinished(event -> node.getProperties().remove(ENTER, transition));
+        transition.play();
     }
 
     /// Adds a gentle scale-up on hover and a press-in scale to a node.

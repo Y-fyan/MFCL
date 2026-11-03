@@ -17,6 +17,8 @@
  */
 package org.jackhuang.hmcl.ui.download;
 
+// MFCL category-specific lazy initialization: Copyright (C) 2026 MFCL contributors.
+
 import com.jfoenix.controls.JFXButton;
 import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.beans.property.ReadOnlyObjectWrapper;
@@ -114,6 +116,11 @@ public class DownloadPage extends DecoratorAnimatedPage implements DecoratorPage
     }
 
     public DownloadPage(@Nullable GameInstanceID uploadInstance, @Nullable Consumer<GameRemoteVersion> gameSelectedCallback) {
+        this(uploadInstance, gameSelectedCallback, Category.GAME);
+    }
+
+    /// Opens only the requested category; embedded content pages must not eagerly load game versions.
+    public DownloadPage(@Nullable GameInstanceID uploadInstance, @Nullable Consumer<GameRemoteVersion> gameSelectedCallback, Category initialCategory) {
         this.gameSelectedCallback = gameSelectedCallback;
         newGameTab.setNodeSupplier(loadVersionFor(() -> new VersionsPage(versionPageNavigator, i18n("install.installer.choose", i18n("install.installer.game")), GameVersionNumber.unknown(), DownloadProviders.getDownloadProvider(),
                 GameComponentType.GAME, () -> {
@@ -147,7 +154,7 @@ public class DownloadPage extends DecoratorAnimatedPage implements DecoratorPage
 
         GameDirectoryManager.registerVersionsListener(this::loadVersions);
 
-        tab.select(newGameTab);
+        selectCategory(initialCategory);
 
         AdvancedListBox sideBar = new AdvancedListBox()
                 .startCategory(i18n("download.game").toUpperCase(Locale.ROOT))

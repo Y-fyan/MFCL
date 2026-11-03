@@ -17,6 +17,8 @@
  */
 package org.jackhuang.hmcl.ui;
 
+// MFCL frame-paced scrolling integration: Copyright (C) 2026 MFCL contributors.
+
 import com.jfoenix.controls.*;
 import javafx.animation.Animation;
 import javafx.animation.Interpolator;
@@ -424,14 +426,16 @@ public final class FXUtils {
         cell.minWidthProperty().bind(widthProperty);
     }
 
+    /// Installs frame-paced wheel smoothing while retaining native touchpad/inertia scrolling.
     public static void smoothScrolling(ScrollPane scrollPane) {
         if (AnimationUtils.isAnimationEnabled())
-            ScrollUtils.addSmoothScrolling(scrollPane);
+            FrameScrollSupport.install(scrollPane);
     }
 
+    /// Installs frame-paced wheel smoothing without a 3 ms layout-update timeline.
     public static void smoothScrolling(VirtualFlow<?> virtualFlow) {
         if (AnimationUtils.isAnimationEnabled())
-            ScrollUtils.addSmoothScrolling(virtualFlow);
+            FrameScrollSupport.install(virtualFlow);
     }
 
     /// If the current environment is JavaFX 23 or higher, this method returns [Labeled#textTruncatedProperty()];

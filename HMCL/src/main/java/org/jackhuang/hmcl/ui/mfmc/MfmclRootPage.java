@@ -17,6 +17,8 @@
  */
 package org.jackhuang.hmcl.ui.mfmc;
 
+// MFCL page routing and performance changes: Copyright (C) 2026 MFCL contributors.
+
 import javafx.animation.PauseTransition;
 import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.beans.property.ReadOnlyObjectWrapper;
@@ -77,6 +79,10 @@ public final class MfmclRootPage extends StackPane implements DecoratorPage {
 
     /// The page viewport below the window title bar.
     private final StackPane content = new StackPane();
+
+    /// Cached MFCL browsers; revisiting a category does not reconstruct its controls or listeners.
+    private final Map<MfmcAddonDownloadPage.Kind, MfmcAddonDownloadPage> addonPages =
+            new EnumMap<>(MfmcAddonDownloadPage.Kind.class);
 
     /// The instance library page.
     private final MfmclLibraryPage libraryPage;
@@ -602,17 +608,18 @@ public final class MfmclRootPage extends StackPane implements DecoratorPage {
         // Category pages keep the store entry selected, but the dropdown itself
         // must close so the sidebar returns to its top-level layout.
         setStoreMenuOpen(false);
-        if (category == DownloadPage.Category.MOD) {
-            showModDownloads();
-            return;
+        switch (category) {
+            case MOD -> { showAddonDownloads(MfmcAddonDownloadPage.Kind.MOD, "模组"); return; }
+            case RESOURCE_PACK -> { showAddonDownloads(MfmcAddonDownloadPage.Kind.RESOURCE_PACK, "资源包"); return; }
+            case SHADER -> { showAddonDownloads(MfmcAddonDownloadPage.Kind.SHADER, "光影"); return; }
+            default -> { }
         }
 
         DownloadPage page = downloadPages.computeIfAbsent(category, key -> {
-            DownloadPage downloadPage = new DownloadPage(null, this::showGameInstallPage);
+            DownloadPage downloadPage = new DownloadPage(null, this::showGameInstallPage, key);
             downloadPage.getLeft().setVisible(false);
             downloadPage.getLeft().setManaged(false);
             downloadPage.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
-            downloadPage.selectCategory(key);
             return downloadPage;
         });
 
@@ -630,7 +637,16 @@ public final class MfmclRootPage extends StackPane implements DecoratorPage {
     /// Shows the MFMC-owned mod browser.
     public void showModDownloads() {
         setStoreMenuOpen(false);
-        showPage(embedded(new MfmcModDownloadPage(), "模组", this::showStore), storeNav);
+        showAddonDownloads(MfmcAddonDownloadPage.Kind.MOD, "模组");
+    }
+
+    /// Shows a cached MFCL browser while keeping the current instance as its download target.
+    private void showAddonDownloads(MfmcAddonDownloadPage.Kind kind, String title) {
+        MfmcAddonDownloadPage page = addonPages.computeIfAbsent(kind, MfmcAddonDownloadPage::new);
+        @Nullable HMCLGameInstance selected = GameDirectoryManager.getSelectedInstance();
+        page.loadInstance(HMCLGameInstance.Optional.of(GameDirectoryManager.getSelectedRepository(),
+                selected == null ? null : selected.getId()));
+        showPage(embedded(page, title, this::showStore), storeNav);
     }
 
     /// Opens the MFMC-owned install page for the selected Minecraft version.
@@ -654,6 +670,8 @@ public final class MfmclRootPage extends StackPane implements DecoratorPage {
         bar.getStyleClass().add("mfmcl-subpage-bar");
 
         VBox wrapper = new VBox(bar, page);
+        wrapper.setMinSize(0, 0);
+        if (page instanceof javafx.scene.layout.Region region) region.setMinSize(0, 0);
         wrapper.getStyleClass().add("mfmcl-embedded-page");
         VBox.setVgrow(page, Priority.ALWAYS);
         return wrapper;

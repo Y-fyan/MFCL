@@ -752,6 +752,20 @@
     -fx-background-color: -mfmcl-bg;
 }
 
+/* MFCL performance changes: Copyright (C) 2026 MFCL contributors.
+   Legacy panels still hosted by MFCL must not blur every scrolling card.
+   Scope this to page bodies: dialog and popup elevation remains unchanged. */
+.mfmcl-embedded-page .card,
+.mfmcl-embedded-page .card-no-padding,
+.mfmcl-embedded-page .card-non-transparent,
+.mfmcl-embedded-page .options-list,
+.mfmc-settings-content .card,
+.mfmc-settings-content .card-no-padding,
+.mfmc-settings-content .card-non-transparent,
+.mfmc-settings-content .options-list {
+    -fx-effect: null;
+}
+
 .mfmcl-subpage-bar {
     -fx-padding: 12 24 12 24;
     -fx-background-color: -mfmcl-surface;
